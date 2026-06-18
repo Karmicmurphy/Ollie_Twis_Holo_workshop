@@ -26,6 +26,7 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Research expedition records
 - Coding bench file tree and text editor
 - Module registry/status
+- Engine Harness dashboard in the Modules room
 - Optional Cloudflare remote hull scaffold
 - Browser fallback mode
 - Local capability and security-policy endpoints
@@ -52,6 +53,23 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Cloudflare Workers Static Assets scaffold
 - Security, generation, UI, and Cloudflare contract tests
 - Powerhose Engine Harness contract for sandboxed local/browser/hosted engine adapters
+- Mini-engine registry hardened with sandbox, input boundary, output artifact, and receipt rules
+
+## Mini Engine Pipeline
+
+The repo includes `docs/MINI_ENGINE_PIPELINE.md` and a browser dashboard in `app/assets/engine-harness.js`.
+
+The flow is:
+
+```text
+capture/create -> artifact -> search/review -> handoff packet -> bounded engine -> output artifact -> receipt -> human review
+```
+
+The registry lives in `app/modules/modules.json`.
+
+Core enabled engines include Talk, Write, Music, Image, Video Storyboard, Research, Coding, Recovery Importer, Artifact Compass, Receipt Ledger, and MCP Gate policy.
+
+Adapter lanes are present but disabled by default for generation, tiny AI, local model sockets, Cloudflare remote hull, AG-UI events, and Signal Desk Pocket.
 
 ## Artifact Compass
 
