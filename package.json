@@ -5,9 +5,12 @@
   "description": "Local-first Twis Holo Workshop with optional Cloudflare remote hull.",
   "type": "module",
   "scripts": {
-    "cf:dev": "wrangler dev",
-    "cf:deploy": "wrangler deploy",
-    "cf:dry": "wrangler deploy --dry-run",
+    "build": "node cloudflare/pages/build.mjs",
+    "pages:dev": "wrangler pages dev dist",
+    "pages:deploy": "wrangler pages deploy dist --project-name ollie-twis-holo-workshop",
+    "cf:dev": "wrangler dev -c wrangler.worker.jsonc",
+    "cf:deploy": "wrangler deploy -c wrangler.worker.jsonc",
+    "cf:dry": "wrangler deploy --dry-run -c wrangler.worker.jsonc",
     "test:static": "python -m pytest tests"
   },
   "devDependencies": {
