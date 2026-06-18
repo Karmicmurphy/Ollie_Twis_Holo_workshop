@@ -54,6 +54,7 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Security, generation, UI, and Cloudflare contract tests
 - Powerhose Engine Harness contract for sandboxed local/browser/hosted engine adapters
 - Mini-engine registry hardened with sandbox, input boundary, output artifact, and receipt rules
+- Free Tool Federation policy for safe optional tool discovery and classification
 
 ## Mini Engine Pipeline
 
@@ -70,6 +71,12 @@ The registry lives in `app/modules/modules.json`.
 Core enabled engines include Talk, Write, Music, Image, Video Storyboard, Research, Coding, Recovery Importer, Artifact Compass, Receipt Ledger, and MCP Gate policy.
 
 Adapter lanes are present but disabled by default for generation, tiny AI, local model sockets, Cloudflare remote hull, AG-UI events, and Signal Desk Pocket.
+
+## Free Tool Federation
+
+The repo includes `docs/FREE_TOOL_FEDERATION_POLICY.md`.
+
+Free and free-tier tools are adapter lanes, not core authority. The safe connection path is selected packet, adapter manifest, permission gate, tool runtime, output artifact, receipt, and human review.
 
 ## Artifact Compass
 
