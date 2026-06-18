@@ -1,0 +1,45 @@
+name: Static Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Build static Cloudflare Pages output
+        run: npm run build
+
+      - name: Run Python contract tests
+        run: python -m pytest tests
+
+      - name: Verify generated static output
+        run: |
+          test -f dist/index.html
+          test -f dist/404.html
+          test -f dist/assets/app.js
+          test -f dist/assets/artifact-compass.js
+          test -f dist/assets/engine-harness.js
+          test -f dist/modules/modules.json
