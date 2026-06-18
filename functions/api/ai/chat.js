@@ -1,0 +1,88 @@
+const DEFAULT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store"
+    }
+  });
+}
+
+function safeMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .filter((m) => m && typeof m.content === "string")
+    .slice(-24)
+    .map((m) => ({
+      role: ["system", "user", "assistant"].includes(m.role) ? m.role : "user",
+      content: m.content.slice(0, 8000)
+    }));
+}
+
+function textFromAiResult(result) {
+  if (!result) return "";
+  if (typeof result.response === "string") return result.response;
+  if (typeof result.text === "string") return result.text;
+  if (typeof result.result === "string") return result.result;
+  if (result.choices && result.choices[0]?.message?.content) return result.choices[0].message.content;
+  return "";
+}
+
+export async function onRequestPost(context) {
+  const env = context.env || {};
+
+  if (!env.AI) {
+    return json({
+      error: "Workers AI binding missing. Add a Workers AI binding named AI in Cloudflare Pages settings."
+    }, 503);
+  }
+
+  let body;
+  try {
+    body = await context.request.json();
+  } catch {
+    return json({ error: "Expected JSON request body." }, 400);
+  }
+
+  const messages = safeMessages(body.messages);
+  if (!messages.length) {
+    return json({ error: "No messages supplied." }, 400);
+  }
+
+  const model = typeof body.model === "string" && body.model.startsWith("@cf/")
+    ? body.model
+    : (env.TWIS_CF_AI_MODEL || DEFAULT_MODEL);
+
+  const result = await env.AI.run(model, {
+    messages,
+    temperature: typeof body.temperature === "number" ? body.temperature : 0.7,
+    max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 1200) : 800
+  });
+
+  const text = textFromAiResult(result) || "No text returned from Cloudflare AI.";
+
+  return json({
+    id: "twis-cf-ai-" + Date.now(),
+    object: "chat.completion",
+    model,
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: text },
+        finish_reason: "stop"
+      }
+    ],
+    text
+  });
+}
+
+export async function onRequestGet(context) {
+  return json({
+    ok: true,
+    endpoint: "/api/ai/chat",
+    bindingRequired: "AI",
+    defaultModel: context.env?.TWIS_CF_AI_MODEL || DEFAULT_MODEL
+  });
+}
