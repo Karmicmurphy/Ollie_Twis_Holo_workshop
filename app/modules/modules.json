@@ -99,6 +99,50 @@
     "status": "working"
   },
   {
+    "id": "deep-sea-salvage",
+    "name": "Deep Sea Salvage",
+    "version": "0.1.0",
+    "room": "import",
+    "execution": ["local-companion", "browser-guide"],
+    "permissions": ["selected-folder:read", "zip:inspect", "artifact:create", "receipt:create"],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "design-registered"
+  },
+  {
+    "id": "artifact-compass",
+    "name": "Artifact Compass",
+    "version": "0.1.0",
+    "room": "work",
+    "execution": ["browser", "local-companion", "sqlite-fts"],
+    "permissions": ["artifact:read", "artifact:relate", "receipt:read"],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "design-registered"
+  },
+  {
+    "id": "receipt-ledger",
+    "name": "Receipt Ledger",
+    "version": "0.1.0",
+    "room": "work",
+    "execution": ["browser", "local-companion", "cloudflare-d1-optional"],
+    "permissions": ["receipt:create", "receipt:read", "hash:verify"],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "design-registered"
+  },
+  {
+    "id": "signal-desk-pocket",
+    "name": "Signal Desk Pocket",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["phone-browser", "cloudflare-optional", "local-pull"],
+    "permissions": ["inbox:create", "photo:optional", "audio:optional", "link:capture"],
+    "cost": "free-tier-optional",
+    "enabledByDefault": false,
+    "status": "design-registered"
+  },
+  {
     "id": "cloudflare",
     "name": "Cloudflare Remote Hull",
     "version": "0.1.0",
@@ -108,6 +152,39 @@
     "cost": "free-tier-optional",
     "enabledByDefault": false,
     "status": "scaffolded"
+  },
+  {
+    "id": "edge-ai-helper",
+    "name": "Edge AI Helper",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["cloudflare-workers-ai-optional", "budgeted"],
+    "permissions": ["artifact:summarize", "artifact:classify", "receipt:create"],
+    "cost": "free-tier-limited",
+    "enabledByDefault": false,
+    "status": "design-registered"
+  },
+  {
+    "id": "local-model-socket",
+    "name": "Local Model Socket",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["local", "openai-compatible-endpoint"],
+    "permissions": ["model:probe", "model:invoke", "receipt:create"],
+    "cost": "free-if-local",
+    "enabledByDefault": false,
+    "status": "design-registered"
+  },
+  {
+    "id": "generation-router",
+    "name": "Generation Router",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["local-adapter", "external-engine-optional", "human-confirmed"],
+    "permissions": ["generation:queue", "artifact:create", "receipt:create"],
+    "cost": "engine-dependent",
+    "enabledByDefault": false,
+    "status": "design-registered"
   },
   {
     "id": "liquid-lfm",
@@ -130,6 +207,17 @@
     "cost": "adapter-only",
     "enabledByDefault": false,
     "status": "adapter-ready"
+  },
+  {
+    "id": "mcp-gate",
+    "name": "MCP Gate",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["local", "cloudflare-optional"],
+    "permissions": ["tools:allowlist", "approval:require", "receipt:create"],
+    "cost": "adapter-only",
+    "enabledByDefault": true,
+    "status": "design-registered"
   },
   {
     "id": "ag-ui",
