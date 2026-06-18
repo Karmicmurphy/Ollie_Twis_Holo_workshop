@@ -1,57 +1,80 @@
 # Cloudflare Remote Hull Setup
 
-This repo is prepared for a small Cloudflare Workers deployment that serves the Workshop shell and exposes a locked-down `/api/*` remote hull.
+This repo supports two Cloudflare deployment paths:
 
-The remote hull is optional. The local Workshop remains the source of truth.
+1. Cloudflare Pages for the public static Workshop shell.
+2. Cloudflare Workers for the optional `/api/*` remote hull.
 
-## What this deploys
+The local Workshop remains the source of truth. Cloudflare is optional and non-authoritative.
 
-- Static assets from `app/`.
-- Worker API from `cloudflare/worker/src/index.js`.
-- Health endpoint: `/api/health`.
-- Capabilities endpoint: `/api/capabilities`.
-- Disabled-by-default inbox endpoint: `/api/inbox`.
-- Disabled-by-default AI helper stub: `/api/ai/summarize`.
+## Current recommended path: Cloudflare Pages
 
-## What it does not deploy
+Use this when connecting the GitHub repo through Cloudflare Pages.
 
-- No local private archive.
-- No Canon authority.
-- No delete/publish/spend/shell tools.
-- No saved API keys.
-- No required paid AI.
-- No Cloudflare D1/R2/KV bindings yet.
+### Pages dashboard settings
 
-## Cloudflare project choice
-
-Use Cloudflare Workers, not a heavy framework project.
-
-Reason: this repo already has a static browser app in `app/` and the remote hull needs `/api/*` routes. Workers Static Assets can serve the app and route API requests from one Worker.
-
-## Dashboard setup
-
-1. Open Cloudflare dashboard.
-2. Go to Workers & Pages.
-3. Create a Worker / Import Git repository.
-4. Choose GitHub account/repo:
-   - `Karmicmurphy/Ollie_Twis_Holo_workshop`
-5. Use the repo's `wrangler.jsonc`.
-6. Build command:
-   - `npm install`
-7. Deploy command:
-   - `npm run cf:deploy`
-8. Output directory:
-   - leave blank if using Workers config.
-
-If Cloudflare asks for a project name, use:
+Repository:
 
 ```text
-ollie-twis-holo-workshop
+Karmicmurphy/Ollie_Twis_Holo_workshop
 ```
 
-## Local command path
+Framework preset:
 
-If running from your own computer later:
+```text
+None
+```
+
+Build command:
+
+```text
+npm run build
+```
+
+Build output directory:
+
+```text
+dist
+```
+
+Root directory:
+
+```text
+/
+```
+
+Do not use:
+
+```text
+npx next build
+```
+
+This project is not a Next.js app. The browser app lives in `app/`, and the build script copies it into `dist/` for Pages.
+
+## Pages config file
+
+The default `wrangler.jsonc` is now a Pages-compatible config and contains:
+
+```json
+{
+  "name": "ollie-twis-holo-workshop",
+  "pages_build_output_dir": "./dist"
+}
+```
+
+Cloudflare Pages requires `pages_build_output_dir` when it uses a Wrangler configuration file.
+
+## Optional Worker remote hull path
+
+Use this later if deploying the Worker API hull separately.
+
+Worker config file:
+
+```text
+wrangler.worker.jsonc
+```
+
+Local commands:
 
 ```bash
 npm install
@@ -60,9 +83,27 @@ npm run cf:dev
 npm run cf:deploy
 ```
 
-## Safety defaults
+The Worker serves static assets from `app/` and reserves `/api/*` for remote hull endpoints.
 
-`wrangler.jsonc` starts with:
+## What the Worker deploys
+
+- Static assets from `app/`.
+- Worker API from `cloudflare/worker/src/index.js`.
+- Health endpoint: `/api/health`.
+- Capabilities endpoint: `/api/capabilities`.
+- Disabled-by-default inbox endpoint: `/api/inbox`.
+- Disabled-by-default AI helper stub: `/api/ai/summarize`.
+
+## What neither path deploys
+
+- No local private archive.
+- No Canon authority.
+- No delete/publish/spend/shell tools.
+- No saved API keys.
+- No required paid AI.
+- No Cloudflare D1/R2/KV bindings yet.
+
+## Safety defaults
 
 ```json
 {
@@ -74,7 +115,20 @@ npm run cf:deploy
 
 That means the remote hull can load and report status, but it will not accept inbox writes or AI calls yet.
 
-## First smoke checks after deployment
+## Smoke checks after Pages deployment
+
+Open:
+
+```text
+https://YOUR-PROJECT.pages.dev/
+```
+
+Expected:
+
+- `/` loads the Workshop shell.
+- Direct browser routes fall back to the shell through `404.html`.
+
+## Smoke checks after Worker deployment
 
 Open:
 
