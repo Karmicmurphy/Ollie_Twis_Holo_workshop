@@ -1,0 +1,17 @@
+name = "twis-holo-remote"
+main = "src/worker.js"
+compatibility_date = "2026-06-18"
+# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+# Optional: restrict browser callers. Leave unset during local testing.
+# [vars]
+# ALLOWED_ORIGIN = "https://your-workshop-domain.example"
+# Do not put REMOTE_WRITE_TOKEN here in public repos. Use: npx wrangler secret put REMOTE_WRITE_TOKEN
+
+[[durable_objects.bindings]]
+name = "PROJECT_ROOM"
+class_name = "ProjectRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ProjectRoom"]

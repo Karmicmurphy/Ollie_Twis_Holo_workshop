@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#071019"><title>Twis Holo Workshop</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="backdrop"><div class="stars"></div><div class="nebula n1"></div><div class="nebula n2"></div><div class="floor"></div></div>
+<div class="app">
+<aside class="sidebar glass">
+  <div class="brand"><div class="cube">TH</div><div><strong>Twis Holo</strong><small>Workshop</small></div></div>
+  <select id="projectSelect" aria-label="Active project"></select>
+  <nav id="nav">
+    <button class="nav active" data-room="home">Home</button><button class="nav" data-room="talk">Talk</button>
+    <button class="nav" data-room="write">Write</button><button class="nav" data-room="music">Music</button>
+    <button class="nav" data-room="image">Images</button><button class="nav" data-room="video">Video</button>
+    <button class="nav" data-room="research">Explore</button><button class="nav" data-room="code">Build</button>
+    <button class="nav" data-room="import">Recover</button><button class="nav" data-room="work">My Work</button>
+    <button class="nav" data-room="modules">Modules</button><button class="nav" data-room="settings">Settings</button>
+  </nav>
+  <div class="side-foot"><button id="exportProject" class="quiet">Export project capsule</button><span id="modeBadge" class="badge">Checking local core…</span></div>
+</aside>
+<main class="workspace">
+<header class="topbar"><div><p id="dateLabel" class="eyebrow"></p><h1 id="title">Good to see you.</h1></div><div><button id="micBtn" class="round">🎙</button><button id="newProject" class="primary">New project</button></div></header>
+
+<section class="room active" data-panel="home">
+  <div class="hero glass">
+    <div><p class="eyebrow">Your creative workshop</p><h2>What do you want to do?</h2><p id="resumeText">Talk, write, make music, work with images and video, explore, build, or recover old work.</p>
+    <div class="row"><button id="continueBtn" class="primary">Continue last session</button><button data-room="work" class="quiet">Open my work</button></div></div>
+    <div class="portal"><i></i><i></i><i></i><b></b></div>
+  </div>
+  <div class="room-grid">
+    <button data-room="talk"><span class="scene talk"></span><b>Talk</b><small>Normal conversation, memory, planning, creative help.</small></button>
+    <button data-room="write"><span class="scene write"></span><b>Write</b><small>Stories, scripts, lyrics, notes, versions.</small></button>
+    <button data-room="music"><span class="scene music"></span><b>Music</b><small>Drums, melody, playback, WAV export.</small></button>
+    <button data-room="image"><span class="scene image"></span><b>Images</b><small>Open, draw, text, filters, PNG export.</small></button>
+    <button data-room="video"><span class="scene video"></span><b>Video</b><small>Media bin, preview, storyboard, project save.</small></button>
+    <button data-room="research"><span class="scene research"></span><b>Explore</b><small>Mission, findings, sources, questions.</small></button>
+    <button data-room="code"><span class="scene code"></span><b>Build</b><small>Project files and code editor.</small></button>
+    <button data-room="import"><span class="scene recover"></span><b>Recover</b><small>Import old folders into the active project.</small></button>
+  </div>
+  <div class="section-head"><h2>Recent artifacts</h2><button data-room="work" class="link">See all</button></div><div id="recentList" class="list"></div>
+</section>
+
+<section class="room" data-panel="talk"><div class="two"><div class="glass chat"><div id="messages" class="messages"></div><form id="chatForm" class="composer"><textarea id="chatInput" rows="3" placeholder="Say anything. Think out loud. Ask for help."></textarea><div><button type="button" id="memoryPrompt" class="quiet">Memory prompt</button><button class="primary">Send</button></div></form></div><aside class="glass panel"><h3>Conversation tools</h3><button id="saveChat" class="tool">Save conversation</button><button id="chatToStory" class="tool">Turn into story draft</button><button id="closeSession" class="tool">Close session</button><p class="muted">The active project and recent artifacts are included in AI context when available.</p></aside></div></section>
+
+<section class="room" data-panel="write"><div class="toolbar"><input id="docTitle" class="title-input" value="Untitled"><div><button id="newDoc" class="quiet">New</button><button id="snapshotDoc" class="quiet">Snapshot</button><button id="saveDoc" class="primary">Save</button></div></div><div class="write-grid"><textarea id="docBody" class="editor" placeholder="Start writing."></textarea><aside class="glass panel tools"><h3>Writing tools</h3><button data-write="starter">Starting line</button><button data-write="questions">Useful questions</button><button data-write="dialogue">Dialogue prompt</button><button data-write="clean">Clean formatting</button><button data-write="timestamp">Date and time</button><button id="readDoc">Read aloud</button><p id="wordCount" class="muted">0 words</p><h4>Snapshots</h4><div id="versions"></div></aside></div></section>
+
+<section class="room" data-panel="music"><div class="glass panel transport"><div><p class="eyebrow">Music bench</p><h2>Beat and melody maker</h2></div><div><button id="playMusic" class="primary">▶ Play</button><button id="stopMusic" class="quiet">■ Stop</button><label>BPM <input id="bpm" type="number" value="92" min="50" max="220"></label><button id="saveMusic" class="quiet">Save</button><button id="exportWav" class="quiet">Export WAV</button></div></div><div id="drumSeq" class="glass panel sequencer"></div><div class="glass panel"><h3>Melody</h3><div class="row"><label>Wave<select id="wave"><option>sine</option><option>triangle</option><option>sawtooth</option><option>square</option></select></label><label>Root<select id="root"><option value="48">C3</option><option value="50">D3</option><option value="52">E3</option><option value="53">F3</option><option value="55">G3</option><option value="57">A3</option></select></label></div><div id="melodySeq" class="melody-grid"></div></div><div class="glass panel"><label>Song / lyric notes<textarea id="songNotes" rows="8"></textarea></label></div></section>
+
+<section class="room" data-panel="image"><div class="image-layout"><div class="glass panel canvas-stage"><canvas id="imageCanvas" width="1280" height="720"></canvas></div><aside class="glass panel"><h3>Image tools</h3><label class="file-button">Open image<input id="imageInput" type="file" accept="image/*"></label><label>Brush size<input id="brushSize" type="range" min="1" max="80" value="12"></label><label>Color<input id="brushColor" type="color" value="#ffffff"></label><button id="drawToggle" class="tool">Drawing: off</button><button id="addText" class="tool">Add text</button><button id="gray" class="tool">Grayscale</button><button id="invert" class="tool">Invert</button><button id="resetImage" class="tool">Reset</button><button id="saveImage" class="tool">Save image project</button><button id="exportPng" class="primary">Export PNG</button></aside></div></section>
+
+<section class="room" data-panel="video"><div class="two"><div class="glass panel"><h2>Video workspace</h2><label class="drop">Add video, audio, or images<input id="videoFiles" type="file" multiple accept="video/*,audio/*,image/*"></label><div id="mediaBin"></div></div><div class="glass panel preview"><div id="mediaPreview" class="muted">Select an item to preview it.</div></div></div><div class="glass panel"><label>Storyboard / edit plan<textarea id="videoNotes" rows="11"></textarea></label><button id="saveVideo" class="primary">Save video project</button></div></section>
+
+<section class="room" data-panel="research"><div class="two"><div class="glass panel"><h2>Expedition notebook</h2><label>Mission<textarea id="mission" rows="4"></textarea></label><label>Findings<textarea id="findings" rows="11"></textarea></label><label>Sources<textarea id="sources" rows="6"></textarea></label><button id="saveResearch" class="primary">Save expedition</button></div><aside class="glass panel"><h3>Question finder</h3><div id="questionDeck"></div><button id="newQuestions" class="quiet">New questions</button></aside></div></section>
+
+<section class="room" data-panel="code"><div class="code-layout"><div class="glass panel"><div class="section-head"><h2>Project files</h2><button id="refreshTree" class="quiet">Refresh</button></div><div id="fileTree" class="file-tree"></div></div><div class="glass panel"><div class="toolbar"><input id="codePath" placeholder="project-id/code/file.txt"><button id="saveCode" class="primary">Save file</button></div><textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea></div></div></section>
+
+<section class="room" data-panel="import"><div class="two"><div class="glass panel"><h2>Recover old work</h2><p class="muted">Enter a folder path from this computer. The companion copies it into the active project, hashes every file, and indexes it as source material.</p><label>Folder path<input id="importPath" placeholder="C:\Users\Randy\Documents\Old Project"></label><button id="importFolder" class="primary">Import folder</button><pre id="importResult"></pre></div><aside class="glass panel"><h3>What gets preserved</h3><p class="muted">Original filename, imported path, source location, file size, SHA-256 hash, source authority state, and a receipt.</p></aside></div></section>
+
+<section class="room" data-panel="work"><div class="section-head"><h2>My Work</h2><div><input id="workSearch" placeholder="Search"><select id="workKind"><option value="all">Everything</option><option value="document">Writing</option><option value="conversation">Conversations</option><option value="music">Music</option><option value="image">Images</option><option value="video">Video</option><option value="research">Research</option></select></div></div><div id="workList" class="list"></div></section>
+
+<section class="room" data-panel="modules"><div class="section-head"><div><p class="eyebrow">Engine bay</p><h2>Modules</h2></div><span class="badge">Local-first · replaceable engines</span></div><div id="moduleGrid" class="module-grid"></div></section>
+
+<section class="room" data-panel="settings"><div class="two"><div class="glass panel"><h2>Workshop settings</h2><label>Your name<input id="userName"></label><label>Companion name<input id="companionName"></label><label class="check"><input id="speakReplies" type="checkbox"> Speak replies</label><label class="check"><input id="lowMotion" type="checkbox"> Low-motion mode</label><button id="saveSettings" class="primary">Save settings</button></div><div class="glass panel"><h3>AI adapter</h3><label>Endpoint<input id="aiEndpoint" placeholder="OpenAI-compatible /v1/chat/completions"></label><label>Model<input id="aiModel"></label><label>API key<input id="aiKey" type="password"></label><button id="saveAI" class="quiet">Save AI adapter</button><p id="aiStatus" class="muted"></p><hr><h3>Cloudflare remote hull</h3><label>Worker URL<input id="cloudflareUrl"></label><button id="saveCloudflare" class="quiet">Save optional remote</button></div></div></section>
+</main></div><div id="toast" class="toast"></div><script src="assets/app.js"></script>
+</body></html>

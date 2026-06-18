@@ -1,0 +1,218 @@
+[
+  {
+    "id": "talk",
+    "name": "Talk",
+    "version": "1.0.0",
+    "room": "talk",
+    "execution": [
+      "browser",
+      "local-companion",
+      "ai-optional"
+    ],
+    "permissions": [
+      "conversation:write",
+      "artifact:create"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "write",
+    "name": "Write",
+    "version": "1.0.0",
+    "room": "write",
+    "execution": [
+      "browser",
+      "local-companion"
+    ],
+    "permissions": [
+      "artifact:create",
+      "artifact:update"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "music",
+    "name": "Music Bench",
+    "version": "1.0.0",
+    "room": "music",
+    "execution": [
+      "browser"
+    ],
+    "permissions": [
+      "audio:play",
+      "artifact:create",
+      "download:create"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "image",
+    "name": "Image Studio",
+    "version": "1.0.0",
+    "room": "image",
+    "execution": [
+      "browser"
+    ],
+    "permissions": [
+      "selected-file:read",
+      "artifact:create",
+      "download:create"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "video",
+    "name": "Video Studio",
+    "version": "1.0.0",
+    "room": "video",
+    "execution": [
+      "browser",
+      "external-engine-optional"
+    ],
+    "permissions": [
+      "selected-file:read",
+      "artifact:create"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "partial"
+  },
+  {
+    "id": "research",
+    "name": "Expedition Engine",
+    "version": "1.0.0",
+    "room": "research",
+    "execution": [
+      "browser",
+      "cloud-optional"
+    ],
+    "permissions": [
+      "artifact:create",
+      "network:optional"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "coding",
+    "name": "Coding Bench",
+    "version": "1.0.0",
+    "room": "code",
+    "execution": [
+      "local-companion"
+    ],
+    "permissions": [
+      "project-files:read",
+      "project-files:write",
+      "execution:approval"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "importer",
+    "name": "Artifact Importer",
+    "version": "1.0.0",
+    "room": "import",
+    "execution": [
+      "local-companion"
+    ],
+    "permissions": [
+      "selected-folder:read",
+      "artifact:create"
+    ],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "working"
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare Remote Hull",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": [
+      "cloudflare"
+    ],
+    "permissions": [
+      "network",
+      "remote-state"
+    ],
+    "cost": "free-tier-optional",
+    "enabledByDefault": false,
+    "status": "scaffolded"
+  },
+  {
+    "id": "liquid-lfm",
+    "name": "Liquid LFM Adapter",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": [
+      "local",
+      "network"
+    ],
+    "permissions": [
+      "model:invoke"
+    ],
+    "cost": "model-dependent",
+    "enabledByDefault": false,
+    "status": "adapter-ready"
+  },
+  {
+    "id": "mcp",
+    "name": "MCP Bridge",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": [
+      "local",
+      "network"
+    ],
+    "permissions": [
+      "tools:discover",
+      "tools:invoke"
+    ],
+    "cost": "adapter-only",
+    "enabledByDefault": false,
+    "status": "adapter-ready"
+  },
+  {
+    "id": "ag-ui",
+    "name": "AG-UI Event Stream",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": [
+      "browser",
+      "network"
+    ],
+    "permissions": [
+      "events:stream"
+    ],
+    "cost": "adapter-only",
+    "enabledByDefault": false,
+    "status": "adapter-ready"
+  },
+  {
+    "id": "a2ui",
+    "name": "A2UI Surface Renderer",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": [
+      "browser"
+    ],
+    "permissions": [
+      "ui:render"
+    ],
+    "cost": "adapter-only",
+    "enabledByDefault": false,
+    "status": "adapter-ready"
+  }
+]
