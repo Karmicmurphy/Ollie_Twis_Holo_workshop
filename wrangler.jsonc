@@ -1,16 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ollie-twis-holo-workshop",
-  "main": "cloudflare/worker/src/index.js",
+  "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-06-18",
-  "assets": {
-    "directory": "./app",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  },
-  "observability": {
-    "enabled": true
-  },
   "vars": {
     "TWIS_REMOTE_HULL_MODE": "public-shell",
     "TWIS_ALLOW_AI": "false",
