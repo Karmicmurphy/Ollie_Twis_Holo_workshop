@@ -22,7 +22,11 @@ if (existsSync(indexPath) && !existsSync(notFoundPath)) {
 
 writeFileSync(
   resolve(outputDir, '_headers'),
-  `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`,
+  `/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: microphone=(self), camera=(), geolocation=()
+`,
   'utf8'
 );
 
