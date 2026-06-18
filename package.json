@@ -14,6 +14,7 @@
     "test:static": "python -m pytest tests"
   },
   "devDependencies": {
+    "next": "file:cloudflare/next-build-shim",
     "wrangler": "^4.0.0"
   }
 }
