@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1",
+  "exportedAt": "2026-06-18T00:00:00Z",
+  "projects": [
+    {
+      "id": "thousand-year-hangover",
+      "title": "Thousand-Year Hangover",
+      "description": "First proving corpus for Twis Holo Workshop.",
+      "authority": "human",
+      "status": "active",
+      "nextAction": "Use only this corpus to prove registry, receipts, review, and recovery."
+    }
+  ]
+}
