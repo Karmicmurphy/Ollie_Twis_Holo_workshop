@@ -47,6 +47,8 @@ def wait_for_server(proc):
 def main():
     env = os.environ.copy()
     env["TWIS_HOLO_PORT"] = PORT
+    env.pop("TWIS_HOLO_ALLOW_REMOTE_GENERATION", None)
+    env.pop("TWIS_HOLO_REMOTE_GENERATION_HOSTS", None)
     proc = subprocess.Popen([sys.executable, "companion/server.py"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         assert wait_for_server(proc)["ok"] is True
@@ -58,16 +60,30 @@ def main():
             "type": "text-to-image",
             "prompt": "rain window"
         }) == 400
+        assert expect_error("/api/generation/jobs", "POST", {
+            "projectId": "thousand-year-hangover",
+            "adapterId": "cloud-generation-provider",
+            "type": "text-to-video",
+            "prompt": "rain window",
+            "endpoint": "https://video.example.com/render",
+            "confirmed": True,
+            "costWarningAccepted": True
+        }) == 400
         job = request("/api/generation/jobs", "POST", {
             "projectId": "thousand-year-hangover",
             "adapterId": "local-comfyui",
             "type": "text-to-image",
             "prompt": "rain window",
             "endpoint": "http://127.0.0.1:8188",
-            "confirmed": True
+            "confirmed": True,
+            "apiKey": "should-not-be-stored"
         })
         assert job["ok"] is True
         assert "queued" in job["status"]
+        jobs = request("/api/jobs")
+        last = jobs[0]
+        assert "should-not-be-stored" not in last["payload"]
+        assert "[REDACTED]" in last["payload"]
         print("Twis Holo generation layer PASS")
     finally:
         proc.terminate()
