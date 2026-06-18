@@ -47,17 +47,21 @@ def wait_for_server(proc):
 def main():
     env = os.environ.copy()
     env["TWIS_HOLO_PORT"] = PORT
+    env.pop("TWIS_HOLO_ALLOW_REMOTE_AI", None)
+    env.pop("TWIS_HOLO_REMOTE_AI_HOSTS", None)
     proc = subprocess.Popen([sys.executable, "companion/server.py"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         assert wait_for_server(proc)["ok"] is True
         assert expect_http_error("/api/health", headers={"Host": "evil.example"}) == 403
         assert expect_http_error("/api/projects", "POST", {"title": "Blocked"}, headers={"Origin": "https://evil.example"}) == 403
         assert expect_http_error("/api/files", "POST", {"path": "../outside.txt", "content": "bad"}) == 400
+        assert expect_http_error("/api/projects", "POST", {"title": "x" * (3 * 1024 * 1024)}) == 400
         request("/api/projects", "POST", {"id": "security-test", "title": "Security Test"})
         request("/api/projects/security-test/artifacts", "POST", {"kind": "document", "title": "Alpha", "payload": {"body": "hello"}})
         got = request('/api/projects/security-test/artifacts?q=" OR * :')
         assert isinstance(got, list)
         assert expect_http_error("/api/ai/chat", "POST", {"endpoint": "http://192.168.1.5:11434/v1/chat/completions", "model": "x", "messages": []}) == 400
+        assert expect_http_error("/api/ai/chat", "POST", {"endpoint": "https://api.example.com/v1/chat/completions", "model": "x", "messages": []}) == 400
         print("Twis Holo security policy PASS")
     finally:
         proc.terminate()
