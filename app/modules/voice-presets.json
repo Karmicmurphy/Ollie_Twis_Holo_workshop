@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "0.1",
+  "updatedAt": "2026-06-18",
+  "authority": "local-browser-speech-hints",
+  "notes": [
+    "These are style presets for browser SpeechSynthesis or future local TTS adapters.",
+    "They do not bundle voice models, do not call paid services, and do not store API keys.",
+    "Actual installed voices depend on the user's operating system and browser."
+  ],
+  "presets": [
+    {
+      "id": "female-velvet-ember",
+      "name": "Velvet Ember",
+      "category": "female-coded",
+      "style": "warm, intimate, confident, smoky",
+      "bestFor": ["late-night narration", "memory scenes", "soft dramatic reads"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["Jenny", "Aria", "Zira", "Sonia", "Ava", "Female"],
+        "rate": 0.88,
+        "pitch": 0.92,
+        "volume": 1.0
+      }
+    },
+    {
+      "id": "female-honey-smoke",
+      "name": "Honey Smoke",
+      "category": "female-coded",
+      "style": "smooth, playful, low, relaxed",
+      "bestFor": ["character narration", "song spoken-word", "story prompts"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["Ava", "Jenny", "Aria", "Emma", "Samantha", "Female"],
+        "rate": 0.94,
+        "pitch": 0.98,
+        "volume": 1.0
+      }
+    },
+    {
+      "id": "female-neon-satin",
+      "name": "Neon Satin",
+      "category": "female-coded",
+      "style": "bright, stylish, cinematic, controlled",
+      "bestFor": ["trailer lines", "visual prompts", "chapter openings"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["Aria", "Jenny", "Natasha", "Susan", "Female"],
+        "rate": 1.0,
+        "pitch": 1.05,
+        "volume": 1.0
+      }
+    },
+    {
+      "id": "male-gravel-road",
+      "name": "Gravel Road",
+      "category": "male-coded",
+      "style": "gritty, road-worn, dry, grounded",
+      "bestFor": ["Ollie Twis narration", "travel scenes", "hard-life reflection"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["Guy", "David", "Mark", "George", "Daniel", "Male"],
+        "rate": 0.86,
+        "pitch": 0.82,
+        "volume": 1.0
+      }
+    },
+    {
+      "id": "male-midnight-baritone",
+      "name": "Midnight Baritone",
+      "category": "male-coded",
+      "style": "deep, cinematic, restrained, heavy",
+      "bestFor": ["chapter titles", "trailers", "dark room narration"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["David", "Guy", "Brian", "Daniel", "Male"],
+        "rate": 0.82,
+        "pitch": 0.72,
+        "volume": 1.0
+      }
+    },
+    {
+      "id": "male-rusted-steel",
+      "name": "Rusted Steel",
+      "category": "male-coded",
+      "style": "rough, scarred, blunt, survivor voice",
+      "bestFor": ["first-person testimony", "grief scenes", "no-bullshit narration"],
+      "speechSynthesisHints": {
+        "preferredVoiceContains": ["Mark", "Guy", "David", "George", "Male"],
+        "rate": 0.9,
+        "pitch": 0.78,
+        "volume": 1.0
+      }
+    }
+  ],
+  "futureAdapterContract": {
+    "requiresHumanChoice": true,
+    "noRemoteVoiceProviderByDefault": true,
+    "receiptRequiredForRenderedAudio": true,
+    "sourceAuthority": false
+  }
+}
