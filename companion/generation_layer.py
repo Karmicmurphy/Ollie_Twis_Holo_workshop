@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 import urllib.parse
@@ -20,7 +21,16 @@ GENERATION_TYPES = {
     "animation-plan",
 }
 
-DANGEROUS_FIELDS = {"apiKey", "secret", "token", "password"}
+DANGEROUS_FIELDS = {"apikey", "api_key", "secret", "token", "password", "authorization"}
+
+
+def _remote_generation_enabled() -> bool:
+    return os.environ.get("TWIS_HOLO_ALLOW_REMOTE_GENERATION", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _remote_generation_hosts() -> set[str]:
+    raw = os.environ.get("TWIS_HOLO_REMOTE_GENERATION_HOSTS", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 
 def load_generation_adapters(root: Path) -> dict[str, Any]:
@@ -30,11 +40,15 @@ def load_generation_adapters(root: Path) -> dict[str, Any]:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def scrub_generation_request(data: dict[str, Any]) -> dict[str, Any]:
-    clean = {}
-    for k, v in data.items():
-        clean[k] = "[REDACTED]" if k in DANGEROUS_FIELDS else v
-    return clean
+def scrub_generation_request(data: Any) -> Any:
+    if isinstance(data, dict):
+        clean = {}
+        for k, v in data.items():
+            clean[k] = "[REDACTED]" if str(k).lower() in DANGEROUS_FIELDS else scrub_generation_request(v)
+        return clean
+    if isinstance(data, list):
+        return [scrub_generation_request(v) for v in data]
+    return data
 
 
 def validate_generation_request(data: dict[str, Any]) -> tuple[bool, str]:
@@ -48,25 +62,36 @@ def validate_generation_request(data: dict[str, Any]) -> tuple[bool, str]:
     return True, "ok"
 
 
-def endpoint_is_allowed(endpoint: str) -> tuple[bool, str]:
+def endpoint_is_allowed(endpoint: str, data: dict[str, Any] | None = None) -> tuple[bool, str]:
     if not endpoint:
         return True, "no endpoint supplied"
     try:
         u = urllib.parse.urlparse(endpoint)
     except Exception:
         return False, "invalid endpoint"
-    if u.scheme == "http" and u.hostname in {"127.0.0.1", "localhost"}:
+
+    if u.hostname in {"127.0.0.1", "localhost"} and u.scheme in {"http", "https"}:
         return True, "local generation endpoint"
+
     if u.scheme == "https":
-        return True, "https generation endpoint"
-    return False, "generation endpoint must be localhost HTTP or HTTPS"
+        host = (u.hostname or "").lower()
+        if not _remote_generation_enabled():
+            return False, "remote generation endpoints are disabled by default; set TWIS_HOLO_ALLOW_REMOTE_GENERATION=1 and TWIS_HOLO_REMOTE_GENERATION_HOSTS to allow one"
+        allowed_hosts = _remote_generation_hosts()
+        if not allowed_hosts or host not in allowed_hosts:
+            return False, "remote generation endpoint host is not in TWIS_HOLO_REMOTE_GENERATION_HOSTS"
+        if data and data.get("costWarningAccepted") is not True:
+            return False, "remote generation requires explicit costWarningAccepted=true"
+        return True, "explicitly allowlisted remote generation endpoint"
+
+    return False, "generation endpoint must be localhost HTTP/HTTPS by default"
 
 
 def create_generation_job(project_id: str, data: dict[str, Any]) -> dict[str, Any]:
     ok, reason = validate_generation_request(data)
     if not ok:
         return {"ok": False, "error": reason}
-    endpoint_ok, endpoint_reason = endpoint_is_allowed(data.get("endpoint", ""))
+    endpoint_ok, endpoint_reason = endpoint_is_allowed(data.get("endpoint", ""), data)
     if not endpoint_ok:
         return {"ok": False, "error": endpoint_reason}
     now = int(time.time())
