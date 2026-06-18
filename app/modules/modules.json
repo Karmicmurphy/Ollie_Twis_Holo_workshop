@@ -4,15 +4,8 @@
     "name": "Talk",
     "version": "1.0.0",
     "room": "talk",
-    "execution": [
-      "browser",
-      "local-companion",
-      "ai-optional"
-    ],
-    "permissions": [
-      "conversation:write",
-      "artifact:create"
-    ],
+    "execution": ["browser", "local-companion", "ai-optional"],
+    "permissions": ["conversation:write", "artifact:create"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -22,14 +15,8 @@
     "name": "Write",
     "version": "1.0.0",
     "room": "write",
-    "execution": [
-      "browser",
-      "local-companion"
-    ],
-    "permissions": [
-      "artifact:create",
-      "artifact:update"
-    ],
+    "execution": ["browser", "local-companion"],
+    "permissions": ["artifact:create", "artifact:update"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -39,31 +26,30 @@
     "name": "Music Bench",
     "version": "1.0.0",
     "room": "music",
-    "execution": [
-      "browser"
-    ],
-    "permissions": [
-      "audio:play",
-      "artifact:create",
-      "download:create"
-    ],
+    "execution": ["browser"],
+    "permissions": ["audio:play", "artifact:create", "download:create"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
+  },
+  {
+    "id": "voice-presets",
+    "name": "Narration Voice Presets",
+    "version": "0.1.0",
+    "room": "modules",
+    "execution": ["browser", "local-tts-adapter-ready"],
+    "permissions": ["speech:play", "artifact:create"],
+    "cost": "free-core",
+    "enabledByDefault": true,
+    "status": "preset-registry-ready"
   },
   {
     "id": "image",
     "name": "Image Studio",
     "version": "1.0.0",
     "room": "image",
-    "execution": [
-      "browser"
-    ],
-    "permissions": [
-      "selected-file:read",
-      "artifact:create",
-      "download:create"
-    ],
+    "execution": ["browser"],
+    "permissions": ["selected-file:read", "artifact:create", "download:create"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -73,14 +59,8 @@
     "name": "Video Studio",
     "version": "1.0.0",
     "room": "video",
-    "execution": [
-      "browser",
-      "external-engine-optional"
-    ],
-    "permissions": [
-      "selected-file:read",
-      "artifact:create"
-    ],
+    "execution": ["browser", "external-engine-optional"],
+    "permissions": ["selected-file:read", "artifact:create"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "partial"
@@ -90,14 +70,8 @@
     "name": "Expedition Engine",
     "version": "1.0.0",
     "room": "research",
-    "execution": [
-      "browser",
-      "cloud-optional"
-    ],
-    "permissions": [
-      "artifact:create",
-      "network:optional"
-    ],
+    "execution": ["browser", "cloud-optional"],
+    "permissions": ["artifact:create", "network:optional"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -107,14 +81,8 @@
     "name": "Coding Bench",
     "version": "1.0.0",
     "room": "code",
-    "execution": [
-      "local-companion"
-    ],
-    "permissions": [
-      "project-files:read",
-      "project-files:write",
-      "execution:approval"
-    ],
+    "execution": ["local-companion"],
+    "permissions": ["project-files:read", "project-files:write", "execution:approval"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -124,13 +92,8 @@
     "name": "Artifact Importer",
     "version": "1.0.0",
     "room": "import",
-    "execution": [
-      "local-companion"
-    ],
-    "permissions": [
-      "selected-folder:read",
-      "artifact:create"
-    ],
+    "execution": ["local-companion"],
+    "permissions": ["selected-folder:read", "artifact:create"],
     "cost": "free-core",
     "enabledByDefault": true,
     "status": "working"
@@ -140,13 +103,8 @@
     "name": "Cloudflare Remote Hull",
     "version": "0.1.0",
     "room": "modules",
-    "execution": [
-      "cloudflare"
-    ],
-    "permissions": [
-      "network",
-      "remote-state"
-    ],
+    "execution": ["cloudflare"],
+    "permissions": ["network", "remote-state"],
     "cost": "free-tier-optional",
     "enabledByDefault": false,
     "status": "scaffolded"
@@ -156,13 +114,8 @@
     "name": "Liquid LFM Adapter",
     "version": "0.1.0",
     "room": "modules",
-    "execution": [
-      "local",
-      "network"
-    ],
-    "permissions": [
-      "model:invoke"
-    ],
+    "execution": ["local", "network"],
+    "permissions": ["model:invoke"],
     "cost": "model-dependent",
     "enabledByDefault": false,
     "status": "adapter-ready"
@@ -172,14 +125,8 @@
     "name": "MCP Bridge",
     "version": "0.1.0",
     "room": "modules",
-    "execution": [
-      "local",
-      "network"
-    ],
-    "permissions": [
-      "tools:discover",
-      "tools:invoke"
-    ],
+    "execution": ["local", "network"],
+    "permissions": ["tools:discover", "tools:invoke"],
     "cost": "adapter-only",
     "enabledByDefault": false,
     "status": "adapter-ready"
@@ -189,13 +136,8 @@
     "name": "AG-UI Event Stream",
     "version": "0.1.0",
     "room": "modules",
-    "execution": [
-      "browser",
-      "network"
-    ],
-    "permissions": [
-      "events:stream"
-    ],
+    "execution": ["browser", "network"],
+    "permissions": ["events:stream"],
     "cost": "adapter-only",
     "enabledByDefault": false,
     "status": "adapter-ready"
@@ -205,12 +147,8 @@
     "name": "A2UI Surface Renderer",
     "version": "0.1.0",
     "room": "modules",
-    "execution": [
-      "browser"
-    ],
-    "permissions": [
-      "ui:render"
-    ],
+    "execution": ["browser"],
+    "permissions": ["ui:render"],
     "cost": "adapter-only",
     "enabledByDefault": false,
     "status": "adapter-ready"
