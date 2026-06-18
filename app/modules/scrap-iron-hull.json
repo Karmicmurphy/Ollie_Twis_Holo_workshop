@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "0.1",
+  "updatedAt": "2026-06-18",
+  "name": "Scrap-Iron Cloud Hull",
+  "purpose": "Smallest useful hybrid powerhouse: local private core, phone capture, optional Cloudflare hull, gated MCP tools, light AI helpers, and receipt-first artifact workflows.",
+  "coreRule": "Local first. Cloud optional. Tools gated. Receipts always. UI explains itself.",
+  "layers": [
+    {
+      "id": "local-core",
+      "name": "Local Workshop Core",
+      "runsWhere": "old PC / browser / Python companion",
+      "owns": ["private files", "SQLite registry", "artifact storage", "source packets", "Canon boundary"],
+      "mustNotDelegate": ["Canon approval", "source deletion", "private archive scanning"]
+    },
+    {
+      "id": "phone-pocket",
+      "name": "Signal Desk Pocket",
+      "runsWhere": "phone browser / future PWA",
+      "owns": ["quick text", "photo", "audio note", "link capture", "inbox packet"],
+      "mustNotDelegate": ["automatic Canon classification", "unapproved cloud sync"]
+    },
+    {
+      "id": "cloudflare-hull",
+      "name": "Cloudflare Remote Hull",
+      "runsWhere": "Cloudflare Free Tier when configured",
+      "owns": ["remote inbox", "capsule relay", "receipt mirror", "D1 metadata", "R2 objects", "small Workers AI helper"],
+      "mustNotDelegate": ["source of truth", "unlimited AI", "raw local archive"]
+    },
+    {
+      "id": "mcp-gate",
+      "name": "MCP Gate",
+      "runsWhere": "local and/or Cloudflare adapter",
+      "owns": ["allowed tool manifest", "tool scopes", "approval rules", "receipt rules"],
+      "mustNotDelegate": ["shell", "secrets", "publish", "delete", "spend", "approve Canon"]
+    }
+  ],
+  "firstModules": [
+    "deep-sea-salvage",
+    "artifact-compass",
+    "receipt-ledger",
+    "signal-desk-pocket",
+    "cloudflare-remote-hull",
+    "mcp-gate",
+    "edge-ai-helper",
+    "local-model-socket",
+    "voice-bench",
+    "generation-router"
+  ],
+  "userFlow": [
+    "capture or import",
+    "hash",
+    "classify",
+    "write receipt",
+    "show in Artifact Compass",
+    "optional helper AI",
+    "optional export/sync",
+    "preserve human authority"
+  ],
+  "uiNeeds": [
+    "dark sci-fi holo cockpit",
+    "hover/tap explanations",
+    "module status cards",
+    "local/cloud/AI/receipt badges",
+    "low-motion support",
+    "phone-friendly capture",
+    "no giant info dump"
+  ]
+}
