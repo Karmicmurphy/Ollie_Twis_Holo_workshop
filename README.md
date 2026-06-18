@@ -32,6 +32,7 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Portable artifact registry JSON snapshots
 - Controlled media generation adapter layer
 - Holo Guide UI layer with hover/tap explanations
+- Artifact Compass browser search overlay with match reasons and related-artifact hints
 
 ## Reinforced in recent passes
 
@@ -50,6 +51,36 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Scrap-Iron Cloud Hull module map
 - Cloudflare Workers Static Assets scaffold
 - Security, generation, UI, and Cloudflare contract tests
+- Powerhose Engine Harness contract for sandboxed local/browser/hosted engine adapters
+
+## Artifact Compass
+
+Artifact Compass now has a no-dependency browser layer in `app/assets/artifact-compass.js`.
+
+It runs over the local Workshop state and adds:
+
+- artifact search from the My Work room;
+- weighted matches across title, kind, path, authority state, and payload;
+- visible match reasons;
+- related-artifact hints by local token overlap;
+- zero API keys, zero accounts, and zero hosted dependency.
+
+Next planned stages:
+
+- companion-backed SQLite FTS5 diagnostics;
+- saved search missions;
+- handoff packet builder from selected results;
+- optional local embeddings using sqlite-vec or equivalent local vector storage.
+
+## Powerhose Engine Harness
+
+The repo includes `docs/POWERHOSE_ENGINE_HARNESS.md`.
+
+The rule is:
+
+**Engines are replaceable tools. Artifacts are the permanent system.**
+
+Local, browser, and optional hosted engines must pass through adapter contracts, permission gates, and receipt artifacts. No engine gets Canon write access. No external runtime gets private folders by default.
 
 ## Cloudflare remote hull
 
