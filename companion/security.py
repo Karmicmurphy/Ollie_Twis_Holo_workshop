@@ -13,10 +13,11 @@ MAX_IMPORT_FILE_BYTES = int(os.environ.get("TWIS_HOLO_MAX_IMPORT_FILE", str(50 *
 SKIP_DIR_NAMES = {
     ".git", ".hg", ".svn",
     "node_modules", ".venv", "venv", "__pycache__",
-    ".cache", ".pytest_cache", ".mypy_cache",
+    ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache",
     ".idea", ".vscode",
-    ".ssh", ".aws", ".azure", ".config",
+    ".ssh", ".aws", ".azure", ".config", ".gnupg",
     "AppData", "Application Data",
+    "Chrome", "Chromium", "Edge", "Firefox", "BraveSoftware",
 }
 
 SECRET_NAME_PATTERNS = [
@@ -28,11 +29,22 @@ SECRET_NAME_PATTERNS = [
     re.compile(r".*private.*key.*", re.I),
     re.compile(r".*id_rsa.*", re.I),
     re.compile(r".*id_ed25519.*", re.I),
+    re.compile(r".*login data.*", re.I),
+    re.compile(r".*cookies.*", re.I),
 ]
 
 
 def _expected_port() -> str:
     return os.environ.get("TWIS_HOLO_PORT", "8787")
+
+
+def _remote_ai_enabled() -> bool:
+    return os.environ.get("TWIS_HOLO_ALLOW_REMOTE_AI", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _remote_ai_hosts() -> set[str]:
+    raw = os.environ.get("TWIS_HOLO_REMOTE_AI_HOSTS", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 
 def json_response(handler, status: int, data: Any) -> None:
@@ -123,8 +135,17 @@ def allowed_ai_endpoint(endpoint: str) -> tuple[bool, str]:
         u = urllib.parse.urlparse(endpoint)
     except Exception:
         return False, "invalid endpoint"
-    if u.scheme == "http" and u.hostname in {"127.0.0.1", "localhost"}:
+
+    if u.hostname in {"127.0.0.1", "localhost"} and u.scheme in {"http", "https"}:
         return True, "local endpoint"
+
     if u.scheme == "https":
-        return True, "approved https endpoint"
-    return False, "only localhost HTTP or HTTPS endpoints are allowed"
+        host = (u.hostname or "").lower()
+        if not _remote_ai_enabled():
+            return False, "remote HTTPS AI endpoints are disabled by default; set TWIS_HOLO_ALLOW_REMOTE_AI=1 and TWIS_HOLO_REMOTE_AI_HOSTS to allow one"
+        allowed_hosts = _remote_ai_hosts()
+        if not allowed_hosts or host not in allowed_hosts:
+            return False, "remote AI endpoint host is not in TWIS_HOLO_REMOTE_AI_HOSTS"
+        return True, "explicitly allowlisted remote endpoint"
+
+    return False, "only localhost HTTP/HTTPS endpoints are allowed by default"
