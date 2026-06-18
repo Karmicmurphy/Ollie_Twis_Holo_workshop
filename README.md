@@ -26,24 +26,62 @@ Python 3 is the only required local dependency. The companion uses only Python's
 - Research expedition records
 - Coding bench file tree and text editor
 - Module registry/status
-- Optional Cloudflare Durable Object remote hull
+- Optional Cloudflare remote hull scaffold
 - Browser fallback mode
 - Local capability and security-policy endpoints
 - Portable artifact registry JSON snapshots
 - Controlled media generation adapter layer
+- Holo Guide UI layer with hover/tap explanations
 
-## Reinforced in this pass
+## Reinforced in recent passes
 
 - Local companion Host and Origin checks
 - JSON request body size limit
 - Safer folder import policy
 - Safe FTS query handling with fallback search
-- AI endpoint restriction to localhost HTTP or HTTPS
+- AI endpoint restriction to localhost HTTP or HTTPS unless explicitly allowed
 - AI provider raw payloads no longer returned by default
 - Browser API key persistence scrubber
 - Generation adapter registry
 - Human-confirmed generation job endpoint
-- Security and generation tests
+- Remote AI/generation endpoints blocked by default
+- Narration voice preset registry
+- Holo cockpit guide layer
+- Scrap-Iron Cloud Hull module map
+- Cloudflare Workers Static Assets scaffold
+- Security, generation, UI, and Cloudflare contract tests
+
+## Cloudflare remote hull
+
+Cloudflare is optional and non-authoritative.
+
+The repo now includes:
+
+- `wrangler.jsonc`
+- `package.json`
+- `cloudflare/worker/src/index.js`
+- `docs/CLOUDFLARE_REMOTE_HULL_SETUP.md`
+
+The Worker serves static assets from `app/` and reserves `/api/*` for remote hull endpoints.
+
+Default remote hull endpoints:
+
+- `/api/health`
+- `/api/capabilities`
+- `/api/inbox` — disabled by default
+- `/api/ai/summarize` — disabled by default
+
+Default safety vars:
+
+```json
+{
+  "TWIS_REMOTE_HULL_MODE": "public-shell",
+  "TWIS_ALLOW_AI": "false",
+  "TWIS_ALLOW_REMOTE_WRITE": "false"
+}
+```
+
+Cloudflare setup notes live in `docs/CLOUDFLARE_REMOTE_HULL_SETUP.md`.
 
 ## Media generation status
 
@@ -104,6 +142,7 @@ Cloudflare is optional and non-authoritative.
 python tests/e2e_api_test.py
 python tests/security_policy_test.py
 python tests/generation_layer_test.py
+python -m pytest tests
 ```
 
 ## Build rule
