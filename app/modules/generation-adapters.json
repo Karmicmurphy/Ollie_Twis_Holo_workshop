@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "0.1",
+  "updatedAt": "2026-06-18",
+  "adapters": [
+    {
+      "id": "builtin-canvas",
+      "name": "Built-in Canvas",
+      "type": "image-editing",
+      "status": "available",
+      "requiresInstall": false,
+      "authority": "local-ui",
+      "capabilities": ["open-image", "draw", "add-text", "grayscale", "invert", "export-png"]
+    },
+    {
+      "id": "builtin-storyboard",
+      "name": "Built-in Storyboard",
+      "type": "video-planning",
+      "status": "available",
+      "requiresInstall": false,
+      "authority": "local-ui",
+      "capabilities": ["media-bin", "preview", "storyboard-notes", "save-video-project"]
+    },
+    {
+      "id": "local-comfyui",
+      "name": "ComfyUI Local Bridge",
+      "type": "generation-adapter",
+      "status": "disabled",
+      "defaultEndpoint": "http://127.0.0.1:8188",
+      "requiresInstall": true,
+      "autoInstall": false,
+      "authority": "external-adapter",
+      "capabilities": ["text-to-image", "image-to-image", "inpaint", "upscale", "text-to-video", "image-to-video"],
+      "rules": ["human-confirmation-required", "receipts-required", "no-source-authority"]
+    },
+    {
+      "id": "local-ltx-video",
+      "name": "LTX Video Local Bridge",
+      "type": "video-generation-adapter",
+      "status": "disabled",
+      "defaultEndpoint": "",
+      "requiresInstall": true,
+      "autoInstall": false,
+      "authority": "external-adapter",
+      "capabilities": ["text-to-video", "image-to-video", "video-to-video", "keyframe-animation"],
+      "rules": ["human-confirmation-required", "receipts-required", "no-source-authority"]
+    },
+    {
+      "id": "local-hunyuan-video",
+      "name": "HunyuanVideo Local Bridge",
+      "type": "video-generation-adapter",
+      "status": "disabled",
+      "defaultEndpoint": "",
+      "requiresInstall": true,
+      "autoInstall": false,
+      "authority": "external-adapter",
+      "capabilities": ["text-to-video", "image-to-video"],
+      "rules": ["human-confirmation-required", "receipts-required", "no-source-authority"]
+    },
+    {
+      "id": "cloud-generation-provider",
+      "name": "Cloud Generation Provider",
+      "type": "cloud-generation-adapter",
+      "status": "disabled",
+      "defaultEndpoint": "",
+      "requiresInstall": false,
+      "autoInstall": false,
+      "authority": "external-provider",
+      "capabilities": ["text-to-image", "image-to-image", "text-to-video", "image-to-video"],
+      "rules": ["https-only", "cost-warning-required", "no-localstorage-api-key", "human-confirmation-required", "receipts-required"]
+    }
+  ]
+}
