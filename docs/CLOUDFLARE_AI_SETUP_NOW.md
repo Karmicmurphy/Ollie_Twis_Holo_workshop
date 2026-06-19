@@ -4,11 +4,34 @@ This is the minimum setup for using the Workshop away from Randy's computer.
 
 Cloudflare is the remote field kit. The local PC remains the private core and source authority.
 
+## Current model defaults
+
+Casual away-mode Talk default:
+
+```text
+@cf/openai/gpt-oss-20b
+```
+
+Optional stronger coding/workshop-agent model:
+
+```text
+@cf/zai-org/glm-5.2
+```
+
+Previous default, now deprecated in Cloudflare's model catalog:
+
+```text
+@cf/meta/llama-3.1-8b-instruct
+```
+
+Do not use the deprecated Llama 3.1 model as the repo default.
+
 ## What is already in the repo
 
 - `functions/api/ai/chat.js`
 - `app/assets/cloudflare-ai-setup.js`
 - Settings button: `Use Cloudflare AI`
+- Settings button: `Use coding/agent AI`
 - Probe button: `Probe Cloudflare AI`
 - GET check: `/api/ai/chat`
 - POST chat endpoint: `/api/ai/chat`
@@ -50,10 +73,17 @@ https://ollie-twis-holo-workshop.pages.dev/
 Then:
 
 1. Open `Settings`.
-2. Press `Use Cloudflare AI`.
+2. Press `Use Cloudflare AI` for normal Talk.
 3. Press `Probe Cloudflare AI`.
 4. If it says reachable, open `Talk`.
 5. Use text or `Start voice conversation`.
+
+For coding/build experiments only:
+
+1. Open `Settings`.
+2. Press `Use coding/agent AI`.
+3. Press `Probe Cloudflare AI`.
+4. Use it for Build/workshop-agent style work, not casual Talk by default.
 
 ## Browser endpoint check
 
@@ -71,11 +101,16 @@ Good result should include:
   "endpoint": "/api/ai/chat",
   "bindingRequired": "AI",
   "bindingPresent": true,
+  "defaultModel": "@cf/openai/gpt-oss-20b",
+  "optionalWorkshopAgentModel": "@cf/zai-org/glm-5.2",
+  "deprecatedPreviousDefault": "@cf/meta/llama-3.1-8b-instruct",
   "status": "ready-to-probe"
 }
 ```
 
 If `bindingPresent` is `false`, the repo code is deployed but the Cloudflare Workers AI binding is still missing or not redeployed.
+
+If `defaultModel` still says `@cf/meta/llama-3.1-8b-instruct`, Cloudflare is still serving an old deployment.
 
 ## What this gives you
 
@@ -99,6 +134,10 @@ phone browser
 - It does not require KV, D1, R2, or Vectorize for the first working away-mode brain.
 
 This is the remote field kit brain, not the private home base.
+
+## Cost boundary
+
+Workers AI may have a free daily allowance, but it is not an unlimited-free foundation. Keep core Workshop ownership local-first and treat Workers AI as the away-mode field kit.
 
 ## Fail messages
 
