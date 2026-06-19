@@ -1,4 +1,5 @@
-const DEFAULT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const DEFAULT_MODEL = "@cf/openai/gpt-oss-20b";
+const WORKSHOP_AGENT_MODEL = "@cf/zai-org/glm-5.2";
 
 const BASE_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -105,6 +106,8 @@ export async function onRequestGet(context) {
     bindingRequired: "AI",
     bindingPresent: hasBinding,
     defaultModel: context.env?.TWIS_CF_AI_MODEL || DEFAULT_MODEL,
+    optionalWorkshopAgentModel: context.env?.TWIS_CF_AGENT_MODEL || WORKSHOP_AGENT_MODEL,
+    deprecatedPreviousDefault: "@cf/meta/llama-3.1-8b-instruct",
     status: hasBinding ? "ready-to-probe" : "binding-missing"
   });
 }
