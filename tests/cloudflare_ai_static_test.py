@@ -6,9 +6,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_cloudflare_ai_function_exists_and_requires_binding():
     fn = (ROOT / "functions" / "api" / "ai" / "chat.js").read_text(encoding="utf-8")
     assert "export async function onRequestPost" in fn
+    assert "export async function onRequestGet" in fn
+    assert "export async function onRequestOptions" in fn
     assert "env.AI" in fn
     assert "AI.run" in fn
     assert "Workers AI binding missing" in fn
+    assert "Cloudflare AI call failed" in fn
+    assert "bindingPresent" in fn
     assert "@cf/meta/llama-3.1-8b-instruct" in fn
 
 
@@ -19,6 +23,7 @@ def test_cloudflare_ai_setup_helper_is_wired():
     assert "Use Cloudflare AI" in helper
     assert "Probe Cloudflare AI" in helper
     assert "/api/ai/chat" in helper
+    assert "Reply with OK." in helper
 
 
 def test_cloudflare_ai_setup_doc_exists():
@@ -28,3 +33,4 @@ def test_cloudflare_ai_setup_doc_exists():
     assert "Use Cloudflare AI" in doc
     assert "Probe Cloudflare AI" in doc
     assert "Workers AI binding missing" in doc
+    assert "bindingPresent" in doc
