@@ -3,6 +3,15 @@
   const $ = (s, r = document) => r.querySelector(s);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 
+  function loadRoadSignalMachine() {
+    if (document.querySelector('script[data-road-signal-machine="true"]')) return;
+    const script = document.createElement("script");
+    script.src = "assets/road-signal-machine.js";
+    script.defer = true;
+    script.dataset.roadSignalMachine = "true";
+    document.body.appendChild(script);
+  }
+
   function addStyles() {
     if ($("#engineHarnessStyle")) return;
     const style = document.createElement("style");
@@ -45,6 +54,7 @@
     return `<article class="lane"><b>${esc(m.name)}</b><small>${esc(m.room)} · ${esc(m.status)} · ${esc(m.sandbox || "sandboxed")}</small><small>${esc(m.notes || "")}</small><div>${exec}</div></article>`;
   }
 
+  loadRoadSignalMachine();
   loadModules().then(modules => {
     render(modules);
     document.addEventListener("click", e => {
