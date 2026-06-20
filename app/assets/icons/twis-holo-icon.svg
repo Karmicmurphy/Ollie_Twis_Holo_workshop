@@ -1,5 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="TWIS Holo Workshop">
-  <title>TWIS Holo Workshop</title>
+  <defs>
+    <radialGradient id="core" cx="50%" cy="48%" r="52%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.2" stop-color="#7cf7ff"/>
+      <stop offset="0.55" stop-color="#2254ff"/>
+      <stop offset="1" stop-color="#070915"/>
+    </radialGradient>
+    <linearGradient id="split" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#12f4ff"/>
+      <stop offset="1" stop-color="#9d5cff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
   <rect width="512" height="512" rx="72" fill="#05080d"/>
-  <image href="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/4QCSRGlnaWthbSBHZW5lcmF0ZWQgSW1hZ2UAZGlnaWthbTo0LjEuMAAA/9sAhAADAgIDAgIDAwMDBAMDBAUFBAQFBQcFBQUFBQcHBQUFBQUHBwcFBQUHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHAQMEBAUFBgUGBgYHDQcHBw0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDf/AABEIAgACAAMBEQACEQEDEQH/xAA6AAEBAQADAQEBAAAAAAAAAAAAAQACAwQFBgcBAQEBAQEBAQAAAAAAAAAAAAABAgMEBQYQAAEDAgQEBQMDBAICAwAAAAEAAgMREiExBEFREyIyYXGBkaGxwTNCUmKCI4KSE0NyorKy0vAVQ2OTJBEBAQACAQIDBwIFBQAAAAAAAAABEQIhMRJBURMiMmFxgZGhscED8BRCUdEiQmKCskNT/9oADAMBAAIRAxEAPwD83SiFWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWMUqxilWf/2Q==" x="0" y="0" width="512" height="512" preserveAspectRatio="xMidYMid slice"/>
+  <path d="M52 206h70l34 34h92" fill="none" stroke="#18f6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+  <path d="M50 255h83l26-26h82" fill="none" stroke="#18f6ff" stroke-width="5" stroke-linecap="round" opacity=".6"/>
+  <path d="M282 242h82l32-32h70" fill="none" stroke="#9a61ff" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+  <path d="M286 285h88l38 38h52" fill="none" stroke="#9a61ff" stroke-width="5" stroke-linecap="round" opacity=".55"/>
+  <circle cx="256" cy="256" r="142" fill="url(#core)" opacity=".45"/>
+  <circle cx="256" cy="256" r="145" fill="none" stroke="url(#split)" stroke-width="9" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="116" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="2"/>
+  <path d="M170 205h62v26h-18v88h-28v-88h-16zM240 205h30v43l35-43h33v114h-30v-69l-39 45v24h-29z" fill="#f4fbff" filter="url(#glow)"/>
+  <path d="M347 205h31v48l40-48h34l-45 51 48 63h-37l-40-55v55h-31z" fill="#f4fbff" filter="url(#glow)"/>
+  <path d="M82 139l52-42 53 42v46h-105z" fill="none" stroke="#13e7ff" stroke-width="5" opacity=".55"/>
+  <rect x="105" y="160" width="24" height="24" fill="#65faff" opacity=".7"/>
+  <rect x="135" y="160" width="24" height="24" fill="#65faff" opacity=".55"/>
+  <path d="M356 126c11-32 65-34 78-1 27-4 48 15 48 41 0 25-19 43-45 43h-102c-24 0-41-16-41-39 0-25 24-45 62-44z" fill="none" stroke="#9d63ff" stroke-width="8" filter="url(#glow)"/>
+  <circle cx="104" cy="342" r="38" fill="none" stroke="#13e7ff" stroke-width="6" opacity=".58"/>
+  <circle cx="104" cy="342" r="12" fill="#13e7ff" opacity=".8"/>
+  <text x="256" y="402" text-anchor="middle" font-family="Arial Black, Impact, sans-serif" font-size="62" letter-spacing="12" fill="#f7fbff" filter="url(#glow)">TWIS</text>
+  <text x="256" y="438" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" letter-spacing="10" fill="#80ecff">HOLO WORKSHOP</text>
 </svg>
