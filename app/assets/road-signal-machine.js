@@ -1,6 +1,6 @@
 (() => {
-  const STORE_KEY = "twisHolo.roadSignal.v2";
-  const OLD_KEY = "twisHolo.roadSignal.v1";
+  const STORE_KEY = "twisHolo.roadSignal.v21";
+  const OLD_KEYS = ["twisHolo.roadSignal.v2", "twisHolo.roadSignal.v1"];
   const $ = (s, root = document) => root.querySelector(s);
 
   const pads = [
@@ -21,7 +21,7 @@
     ["Banjo Wire", "banjo tick nervous like wire", "banjo ticks, fence wire, rust Americana", "Backroad"],
     ["Truck Idle", "truck idle under the porch light", "low idle rumble, worn engine, road pressure", "Backroad"],
     ["Gravel Line", "gravel line in the throat", "older gravel male spoken-word line, close mic, hard-lived voice", "AI/Voice"],
-    ["AI Classification", "AI says classification missing", "sterile female AI countervoice, machine category failure", "AI/Voice"],
+    ["AI Classification", "AI says classification missing", "sterile hostile AI countervoice, machine category failure", "AI/Voice"],
     ["Human Refusal", "human says good means it still moves", "human refusal, sarcastic counterline, survival signal", "AI/Voice"],
     ["Drop Command", "cut the room and drop it back", "negative-space command, half-bar cut, full slam back", "AI/Voice"]
   ];
@@ -42,52 +42,49 @@
     "Velocity-Ghost Engine": "Ghost notes, muted hits, low-velocity percussion, humanized accents, and barely-there dirt keep the groove alive."
   };
 
+  const aiBehaviors = {
+    "Hostile Audit Machine": "Sterile but sarcastic compliance engine. Interrupts with Incorrect, Noncompliant, Classification failed again, Resolution rejected. Her phrases get chopped into rhythmic debris when challenged.",
+    "Cold Classification Failure": "Calm AI voice tries to classify the human mess and keeps failing. Less sarcastic, more procedural and eerie.",
+    "Interruptive Compliance Engine": "Short hostile interruptions become percussion: non-com-pli-ant, class-i-fi-ca-tion, un-re-solved, de-nied.",
+    "Minimal Ghost AI": "Use only a few AI cut-ins, buried in static and bitcrush, as if the machine is losing signal."
+  };
+
+  const dropBehaviors = {
+    "AI Insult To Door-Kick Bass": "AI insult, half-bar silence/static, male breath or shut up lady, then bass drop hits like a door kicked open.",
+    "Negative-Space Slam": "Strip nearly everything out for half a bar before the drop, leave breath/static, then slam back with kick, sub, guitar-synth, and static.",
+    "Instrument Handoff Drop": "Guitar asks, synth answers, tom asks, static answers, dog interrupts once, then kick and bass reply together.",
+    "Noisy But Controlled Drop": "Use stutters, scanner cuts, tape drag, and radio bursts, but keep the kick/sub groove stable."
+  };
+
+  const freshPhrases = [
+    "beer can sunrise", "dog by the threshold", "wire in the lungs", "sub-bass under the ribs", "guitar chewing sparks",
+    "static in the ceiling", "bad road heartbeat", "machine dust", "rust in the timing", "flanger on the truth"
+  ];
+
   const tracks = ["Kick Mud", "Four Hats", "Late Tom", "Banjo Wire", "Static Cut", "Dirty Guitar Bite", "Synth Growl", "AI Classification"];
 
   const proof = {
-    title: "WHEN THE ROOM COMES BACK",
     bpm: 132,
     key: "D minor",
     object: "the room after the party, when reality comes back",
     lead: "Guitar-Synth Motor",
     support: "Polyrhythm / Off-Time Tribal",
-    accent: "Resample-Abuse Engine + Negative-Space Drop",
-    pads: ["Beer Can", "Dog Door", "Four Hats", "Kick Mud", "Static Cut", "Dirty Guitar Bite", "Synth Growl", "AI Classification", "Drop Command"],
-    lyric: `Beer can on the floor.
-Static in the wall.
-Four hats in the skull.
-Kick under the table.
-Guitar scrape the room awake.
-Synth breathe black.
-Now let the room come back.
-
-AI: Post-event condition detected.
-Human: No. That's the bill walking in quiet.
-
-When the room comes back,
-it don't yell.
-It don't judge.
-It just sits there well.
-
-Ash in the tray.
-Can on the floor.
-Dog at the door
-like he knew before.
-
-Room comes—
-[negative-space cut: half-bar silence/static]
-Back.
-[huge kick/sub/guitar/synth slam]`
+    accent: "Resample-Abuse Engine",
+    aiBehavior: "Hostile Audit Machine",
+    dropBehavior: "AI Insult To Door-Kick Bass",
+    pads: ["Beer Can", "Dog Door", "Four Hats", "Kick Mud", "Static Cut", "Dirty Guitar Bite", "Synth Growl", "AI Classification", "Drop Command"]
   };
 
   function load() {
     try {
       const current = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
       if (Object.keys(current).length) return current;
-      return JSON.parse(localStorage.getItem(OLD_KEY) || "{}");
-    } catch {
-      return {};
-    }
+      for (const key of OLD_KEYS) {
+        const old = JSON.parse(localStorage.getItem(key) || "{}");
+        if (Object.keys(old).length) return old;
+      }
+    } catch {}
+    return {};
   }
 
   function save(data) { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
@@ -101,7 +98,7 @@ Back.
       .road-signal{margin-top:16px;border:1px solid #3a596f;border-radius:18px;padding:16px;background:linear-gradient(180deg,#101d29,#071018)}
       .road-signal h3{margin:.2rem 0}.road-signal .rs-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
       .road-signal .rs-pill{display:inline-block;border:1px solid #345166;border-radius:999px;padding:5px 9px;color:#9bb0c1;font-size:12px;margin:2px}
-      .rs-engine-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}.rs-engine-grid label{margin:0}
+      .rs-engine-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.rs-engine-grid label{margin:0}
       .rs-pad-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0}.rs-bank{margin-top:12px}.rs-bank h4{margin:8px 0;color:#62e8ff}
       .rs-pad{min-height:82px;border:1px solid #345166;border-radius:13px;background:#0a141d;color:#eff9ff;padding:10px;text-align:left}
       .rs-pad b{display:block;color:#62e8ff}.rs-pad small{display:block;color:#9bb0c1;margin-top:4px;line-height:1.25}
@@ -109,7 +106,7 @@ Back.
       .rs-row{display:grid;grid-template-columns:112px repeat(16,28px);gap:5px;align-items:center;margin:6px 0;min-width:650px}.rs-seq-wrap{overflow:auto;border:1px solid #263f52;border-radius:12px;padding:10px;background:#071019}
       .rs-step{width:26px;height:26px;border:1px solid #2d4456;border-radius:7px;background:#05090e}.rs-step.on{background:#9d7dff;box-shadow:0 0 12px #9d7dff77}.rs-name{font-size:12px;color:#9bb0c1;white-space:nowrap}
       .rs-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.rs-actions button{border:1px solid #345166;border-radius:10px;background:#0a141d;color:#eff9ff;padding:9px 10px}.rs-actions button.primaryish{border-color:#53d6ef;background:#12313f}
-      .rs-output{min-height:240px;white-space:pre-wrap;font:14px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}.rs-note{border-left:3px solid #62e8ff;padding-left:10px;color:#9bb0c1}
+      .rs-output{min-height:260px;white-space:pre-wrap;font:14px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}.rs-note{border-left:3px solid #62e8ff;padding-left:10px;color:#9bb0c1}
       @media(max-width:900px){.rs-engine-grid{grid-template-columns:1fr 1fr}.rs-pad-grid{grid-template-columns:repeat(2,1fr)}}
       @media(max-width:780px){.road-signal{padding:12px}.rs-row{grid-template-columns:92px repeat(16,24px);min-width:565px}.rs-step{width:22px;height:22px}.rs-actions{display:grid}.rs-actions button{width:100%}.rs-engine-grid{grid-template-columns:1fr}}
       @media(max-width:420px){.rs-pad-grid{grid-template-columns:1fr}.rs-pad{min-height:64px}}
@@ -139,10 +136,12 @@ Back.
     if (!s.bpm) s.bpm = 130;
     if (!s.key) s.key = "D minor";
     if (!s.swing) s.swing = 12;
-    if (!s.coreObject) s.coreObject = "beer before the sun / dog at the door / room comes back";
+    if (!s.coreObject) s.coreObject = "beer can sunrise / dog by the threshold / room comes back";
     if (!s.leadEngine) s.leadEngine = "Guitar-Synth Motor";
     if (!s.supportEngine) s.supportEngine = "Off-Time Tribal Engine";
     if (!s.accentEngine) s.accentEngine = "Radio-Rhythm Engine";
+    if (!s.aiBehavior) s.aiBehavior = "Hostile Audit Machine";
+    if (!s.dropBehavior) s.dropBehavior = "AI Insult To Door-Kick Bass";
     if (!Array.isArray(s.activePads)) s.activePads = [];
     if (!s.pattern) s.pattern = defaultPattern();
     tracks.forEach(t => { if (!Array.isArray(s.pattern[t])) s.pattern[t] = defaultPattern()[t]; });
@@ -178,13 +177,13 @@ Back.
 
   function buildLyric(s) {
     const lines = selectedPads(s).map(name => pads.find(p => p[0] === name)?.[1]).filter(Boolean);
-    return [...lines, "", "AI: Classification incomplete.", "Human: Good. Means it still moves."].join("\n");
+    return [...lines, "", "AI: Noncompliant. Classification failed again.", "Human: Good. Means it still moves."].join("\n");
   }
 
   function buildPrompt(s) {
     const names = selectedPads(s);
     const tags = names.map(name => pads.find(p => p[0] === name)?.[2]).filter(Boolean).join("; ");
-    return `ROAD-SIGNAL MACHINE v0.2 - EVOLUTIONARY PROMPT\n\nIDENTITY:\nRandy / Ollie_Twis world. No coffee. Beer-before-sun honesty. Dog at the door. Road, truck, mud, wire, static, bad machines. Older gravel male voice. Sterile female AI countervoice. Fast hard-lived motion. Human against machine classification. Grief underneath, movement on top.\n\nCORE OBJECT:\n${s.coreObject}\n\nTEMPO / KEY:\n${s.bpm} BPM, ${s.key}.\n\nLEAD INSTRUMENTAL ENGINE:\n${s.leadEngine}: ${engines[s.leadEngine] || s.leadEngine}\n\nSUPPORT ENGINE:\n${s.supportEngine}: ${engines[s.supportEngine] || s.supportEngine}\n\nACCENT ENGINE:\n${s.accentEngine}: ${engines[s.accentEngine] || s.accentEngine}\n\nPAD LANGUAGE:\n${names.join(", ")}\n\nPRODUCTION TAGS:\n${tags}\n\nSECTION BEHAVIOR:\nBuild the groove first. Let lyrics name sounds while sounds answer. Use instrument handoffs. Use controlled glitch damage. Before the biggest drop, create negative space, then slam back with kick, sub, dirty guitar, synth, and static.\n\nVOCAL:\nOlder gravelly male spoken-word rapper, 50s, cracked hard-lived voice, close-mic'd, fast-thinking, sarcastic, angry, funny at the edges. No pop singing. Secondary detached female AI assistant voice briefly tries to classify the mess.\n\nLYRIC BLOCK:\n${buildLyric(s)}\n\nAVOID:\nNo coffee. No pop singing. No slow funeral tempo. No clean sermon. No fake redemption arc. No polished Nashville. No generic EDM gloss. No young smooth male voice. No random novelty sample spam. No overstuffed chaos. Controlled damage riding a strong groove.`;
+    return `ROAD-SIGNAL MACHINE v2.1 - DEBUG-STABLE EVOLUTIONARY PROMPT\n\nSTARTING FIELDS:\nLead engine: ${s.leadEngine}\nSupport engine: ${s.supportEngine}\nAccent engine: ${s.accentEngine}\nLyrical center: ${s.coreObject}\nAI behavior: ${s.aiBehavior}\nDrop behavior: ${s.dropBehavior}\n\nIDENTITY:\nRandy / Ollie_Twis world. No coffee. Beer-before-sun honesty without turning it into cartoon debauchery. Dog at the door. Road, truck, mud, wire, static, bad machines. Older gravel male voice. Human against machine classification. Haunted underneath, moving hard on top. Fast, angry, funny at the edges, consequence-aware.\n\nCORE OBJECT:\n${s.coreObject}\n\nTEMPO / KEY:\n${s.bpm} BPM, ${s.key}.\n\nLEAD INSTRUMENTAL ENGINE:\n${s.leadEngine}: ${engines[s.leadEngine] || s.leadEngine}\n\nSUPPORT ENGINE:\n${s.supportEngine}: ${engines[s.supportEngine] || s.supportEngine}\n\nACCENT ENGINE:\n${s.accentEngine}: ${engines[s.accentEngine] || s.accentEngine}\n\nAI VOICE BEHAVIOR:\n${s.aiBehavior}: ${aiBehaviors[s.aiBehavior] || s.aiBehavior}\n\nBASS / DROP BEHAVIOR:\n${s.dropBehavior}: ${dropBehaviors[s.dropBehavior] || s.dropBehavior}\n\nPAD LANGUAGE:\n${names.join(", ")}\n\nPRODUCTION TAGS:\n${tags}\n\nSECTION BEHAVIOR:\nBuild the groove first. Let lyrics name sounds while sounds answer, but do not make every line a production command. Use roughly 60% real lyrics, 25% sound-command lyrics, 15% AI cut-ins/glitch instructions. Use bracket commands mainly at intro, pre-chorus, drops, AI interruptions, and final build. Use instrument handoffs. Use controlled glitch damage riding a strong groove.\n\nFRESH PHRASE POOL:\n${freshPhrases.join("; ")}\n\nVOCAL:\nOlder gravelly male spoken-word rapper, 50s, cracked hard-lived voice, close-mic'd, fast-thinking, sarcastic, angry, funny at the edges. No pop singing. Secondary female AI voice is not soft or sexy; she is a smug hostile audit machine.\n\nLYRIC BLOCK:\n${buildLyric(s)}\n\nAVOID:\nNo coffee. No pop singing. No slow funeral tempo. No clean sermon. No fake redemption arc. No polished Nashville. No generic EDM gloss. No young smooth male voice. No random novelty sample spam. No overstuffed chaos. No random animal-sound takeover. No bracket-command manual disguised as a song. Controlled damage riding a strong groove.\n\nSUCCESS TEST:\nDoes it feel like a dirty fast groove with human voltage, controlled glitch damage, hostile AI cut-ins, beer-soaked truth, and a hard bass/guitar-synth engine?`;
   }
 
   function renderOutput(box) {
@@ -192,8 +191,8 @@ Back.
     if (out) out.value = buildPrompt(state());
   }
 
-  function optionHtml(selected) {
-    return Object.keys(engines).map(name => `<option ${name === selected ? "selected" : ""}>${esc(name)}</option>`).join("");
+  function optionHtml(source, selected) {
+    return Object.keys(source).map(name => `<option ${name === selected ? "selected" : ""}>${esc(name)}</option>`).join("");
   }
 
   function renderSequencer(box) {
@@ -223,12 +222,11 @@ Back.
 
   function loadProof(box) {
     const s = state();
-    s.bpm = proof.bpm;
-    s.key = proof.key;
+    Object.assign(s, proof);
     s.coreObject = proof.object;
     s.leadEngine = proof.lead;
     s.supportEngine = proof.support;
-    s.accentEngine = "Negative-Space Drop";
+    s.accentEngine = proof.accent;
     s.activePads = proof.pads;
     save(s);
     box.remove();
@@ -246,16 +244,18 @@ Back.
     box.id = "roadSignalMachine";
     box.className = "road-signal";
     box.innerHTML = `
-      <div class="rs-top"><div><p class="eyebrow">Road-Signal Machine v0.2</p><h3>Evolutionary Beer Before the Sun Kit</h3><p class="muted">Pads are sound commands. Engines choose how the music mutates. Build groove first, lyrics second.</p></div><div><span class="rs-pill">evolution allowed</span><span class="rs-pill">lead/support/accent</span><span class="rs-pill">negative-space drop</span><span class="rs-pill">phone-friendly</span></div></div>
-      <p class="rs-note">Passover result: v0.1 had pads and prompt export, but not enough engine evolution. v0.2 adds lead/support/accent engine selection, mechanism pads, proof-template loading, and clearer prompt layers.</p>
+      <div class="rs-top"><div><p class="eyebrow">Road-Signal Machine v2.1</p><h3>Debug-Stable Evolution Kit</h3><p class="muted">Engine first. Lyrics second. Hostile AI and harder bass drops are now first-class controls.</p></div><div><span class="rs-pill">debug-stable</span><span class="rs-pill">hostile AI</span><span class="rs-pill">bass/drop controls</span><span class="rs-pill">controlled damage</span></div></div>
+      <p class="rs-note">v2 debug fix: do not overdo grief, do not turn every lyric into a bracket command, make the AI voice more hostile, and make bass/drop behavior stronger by default.</p>
       <div class="rs-engine-grid">
         <label>BPM<input id="rsBpm" type="number" min="90" max="160" value="${s.bpm}"></label>
         <label>Key<input id="rsKey" value="${esc(s.key)}"></label>
-        <label>Core object<input id="rsObject" value="${esc(s.coreObject)}"></label>
+        <label>Lyrical center<input id="rsObject" value="${esc(s.coreObject)}"></label>
         <label>Swing %<input id="rsSwing" type="number" min="0" max="40" value="${s.swing}"></label>
-        <label>Lead engine<select id="rsLead">${optionHtml(s.leadEngine)}</select></label>
-        <label>Support engine<select id="rsSupport">${optionHtml(s.supportEngine)}</select></label>
-        <label>Accent engine<select id="rsAccent">${optionHtml(s.accentEngine)}</select></label>
+        <label>Lead engine<select id="rsLead">${optionHtml(engines, s.leadEngine)}</select></label>
+        <label>Support engine<select id="rsSupport">${optionHtml(engines, s.supportEngine)}</select></label>
+        <label>Accent engine<select id="rsAccent">${optionHtml(engines, s.accentEngine)}</select></label>
+        <label>AI behavior<select id="rsAiBehavior">${optionHtml(aiBehaviors, s.aiBehavior)}</select></label>
+        <label>Drop behavior<select id="rsDropBehavior">${optionHtml(dropBehaviors, s.dropBehavior)}</select></label>
       </div>
       ${groupedPads()}
       <h3>16-step road loop</h3><div id="rsSeq" class="rs-seq-wrap"></div>
@@ -272,6 +272,8 @@ Back.
     bindField("#rsLead", "leadEngine");
     bindField("#rsSupport", "supportEngine");
     bindField("#rsAccent", "accentEngine");
+    bindField("#rsAiBehavior", "aiBehavior");
+    bindField("#rsDropBehavior", "dropBehavior");
 
     box.querySelectorAll("[data-rs-pad]").forEach(btn => {
       const idx = Number(btn.dataset.rsPad);
@@ -291,7 +293,7 @@ Back.
     $("#rsBuildLyric", box).onclick = () => { $("#rsOutput", box).value = buildLyric(state()); };
     $("#rsBuildPrompt", box).onclick = () => renderOutput(box);
     $("#rsCopyPrompt", box).onclick = async () => { try { await navigator.clipboard.writeText($("#rsOutput", box).value); } catch {} };
-    $("#rsReset", box).onclick = () => { localStorage.removeItem(STORE_KEY); localStorage.removeItem(OLD_KEY); box.remove(); render(true); };
+    $("#rsReset", box).onclick = () => { localStorage.removeItem(STORE_KEY); OLD_KEYS.forEach(k => localStorage.removeItem(k)); box.remove(); render(true); };
 
     renderSequencer(box);
     renderOutput(box);
