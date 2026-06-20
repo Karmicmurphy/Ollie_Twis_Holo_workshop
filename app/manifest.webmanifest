@@ -1,9 +1,20 @@
 {
   "name": "Twis Holo Workshop",
   "short_name": "Twis Holo",
+  "description": "Randy's local-first creative intelligence workshop.",
+  "id": "/",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#05080d",
   "theme_color": "#071019",
-  "icons": []
+  "icons": [
+    {
+      "src": "assets/icons/twis-holo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
