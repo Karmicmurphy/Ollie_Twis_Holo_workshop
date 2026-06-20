@@ -234,6 +234,38 @@ Example pad banks:
 - Human Refusal
 - Drop Command
 
+## 9. Evolution Skills Layer
+
+The Evolution Skills layer adds new instrumental behavior without bloating the identity.
+
+When expanding Road-Signal, choose the instrumental mechanism first, then build lyrics and production around it.
+
+Current expanded mechanisms include:
+
+- Polymeter / Polyrhythm Engine
+- Velocity-Ghost Engine
+- Resample-Abuse Engine
+- Negative-Space Drop
+- Instrument Handoff Engine
+- Dynamic Dirt Automation
+
+Use the same selection rule:
+
+- 1 lead engine
+- 1 support engine
+- 1 accent engine
+
+The proof example is stored separately as:
+
+`docs/ROAD_SIGNAL_PROOF_WHEN_THE_ROOM_COMES_BACK.md`
+
+Proof combo:
+
+- Lead: Guitar-Synth Motor
+- Support: Polyrhythm / Off-Time Tribal
+- Accent: Resample-Abuse + Negative-Space Drop
+- Core object: the room after the party, when reality comes back
+
 ## Proof Test
 
 A Road-Signal answer passes only if it separates:
@@ -244,3 +276,5 @@ A Road-Signal answer passes only if it separates:
 - Product System: pads, sequencer, lyric engine, prompt builder.
 
 If Randy says “switch it up,” “move the mechanism,” or “another way,” the first response must choose or vary an instrumental mechanism before rewriting lyrics.
+
+If Randy provides a proof song, preserve it as an implementation artifact, not just a lyric draft.
