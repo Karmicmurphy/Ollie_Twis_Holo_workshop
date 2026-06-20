@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v1";
+const CACHE_NAME = "twis-holo-workshop-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "./assets/style.css",
   "./assets/app.js",
   "./assets/road-signal-machine.js",
+  "./assets/install-workshop.js",
   "./assets/icons/twis-holo-icon.svg"
 ];
 
