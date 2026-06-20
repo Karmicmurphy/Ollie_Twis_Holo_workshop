@@ -1,0 +1,3 @@
+@echo off
+echo Opening Twis Holo Workshop cloud shell...
+start "" "https://ollie-twis-holo-workshop.pages.dev/"
