@@ -8,6 +8,22 @@ The Workshop opens at `http://127.0.0.1:8787`.
 
 Python 3 is the only required local dependency. The companion uses only Python's standard library.
 
+## Architecture and guardrails
+
+- `WORKSHOP_ARCHITECTURE.md` — defines LOCAL / CLOUD / GITHUB authority boundaries and the room-by-room architecture.
+- `SECURITY_GATES.md` — defines MCP, browser-agent, local-tool, candidate-tool, and artifact-write gates.
+- `CLOUDFLARE_COST_GUARDRAILS.md` — defines Cloudflare Pages / Workers AI cost and data-safety boundaries.
+
+Current operating rule:
+
+```text
+LOCAL = private home base
+CLOUD = phone / public field kit
+GITHUB = code backup and deploy source
+```
+
+Do not change runtime behavior until the current rooms, launchers, My Work, Artifact Compass, and Road-Signal artifact save path are tested.
+
 ## What is working
 
 - Local project folders
