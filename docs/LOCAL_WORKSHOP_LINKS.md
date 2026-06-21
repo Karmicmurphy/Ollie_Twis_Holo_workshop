@@ -56,6 +56,7 @@ launchers/open-workshop-local.bat
 launchers/open-workshop-cloud.bat
 launchers/open-workshop-cloud.url
 launchers/create-desktop-shortcuts.bat
+launchers/generate-workshop-icon.ps1
 ```
 
 ## Easiest setup on Windows
@@ -83,6 +84,18 @@ Twis Holo Workshop - LOCAL
 Twis Holo Workshop - CLOUD
 ```
 
+The helper also attempts to create a Windows icon file at:
+
+```text
+app\assets\icons\twis-holo-icon.ico
+```
+
+using:
+
+```text
+launchers\generate-workshop-icon.ps1
+```
+
 ## If Windows blocks the script
 
 Right-click the file and choose:
@@ -91,9 +104,9 @@ Right-click the file and choose:
 Run as administrator
 ```
 
-Or manually create shortcuts:
+Or manually create shortcuts.
 
-### Manual LOCAL shortcut
+## Manual LOCAL shortcut
 
 1. Right-click Desktop.
 2. Choose `New > Shortcut`.
@@ -110,7 +123,7 @@ start-workshop.bat
 Twis Holo Workshop - LOCAL
 ```
 
-### Manual CLOUD shortcut
+## Manual CLOUD shortcut
 
 1. Right-click Desktop.
 2. Choose `New > Shortcut`.
@@ -130,29 +143,38 @@ Twis Holo Workshop - CLOUD
 
 Windows shortcut icons work best with `.ico` files.
 
-The app currently uses:
+The shortcut helper now tries to generate:
 
 ```text
-app/assets/icons/twis-holo-icon.svg
+app/assets/icons/twis-holo-icon.ico
 ```
 
-That is good for browsers and phone home-screen icons, but Windows shortcuts usually prefer `.ico`.
+If it exists, the LOCAL and CLOUD shortcuts use it automatically.
 
 To set a custom icon manually:
 
 1. Right-click the Desktop shortcut.
 2. Click `Properties`.
 3. Click `Change Icon`.
-4. Pick a built-in Windows icon, or browse to a `.ico` file.
-5. Click `OK`, then `Apply`.
-
-Later, add a real file here:
+4. Browse to:
 
 ```text
-app/assets/icons/twis-holo-icon.ico
+app\assets\icons\twis-holo-icon.ico
 ```
 
-Then the shortcut helper can be updated to use that icon automatically.
+5. Click `OK`, then `Apply`.
+
+If the `.ico` file does not exist, run:
+
+```text
+launchers\generate-workshop-icon.ps1
+```
+
+or rerun:
+
+```text
+launchers\create-desktop-shortcuts.bat
+```
 
 ## Phone launcher
 
