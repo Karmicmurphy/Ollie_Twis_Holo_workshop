@@ -2,11 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ollie-twis-holo-workshop-worker",
   "main": "cloudflare/worker/src/index.js",
-  "compatibility_date": "2026-06-18",
+  "compatibility_date": "2026-07-14",
   "assets": {
     "directory": "./app",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
+  },
+  "ai": {
+    "binding": "AI"
   },
   "observability": {
     "enabled": true
