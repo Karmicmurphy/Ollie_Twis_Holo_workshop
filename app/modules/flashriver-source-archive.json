@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0.1",
+  "id": "flashriver-source-archive",
+  "name": "FlashRiver Source Archive",
+  "status": "private-local-source",
+  "enabledByDefault": false,
+  "sourcePackage": {
+    "artifact": "FLASHRIVER_TWIS_WORKSHOP_AGENT_HANDOFF_PACKAGE.zip",
+    "sha256": "6ef7317722202769b08d74a434519871736e055d1864fa5eb6c6fb547cb40108",
+    "sizeBytes": 7363639,
+    "zipIntegrity": "PASS",
+    "debugResult": "PASS"
+  },
+  "moduleLanes": [
+    {
+      "id": "twis-talkbox",
+      "destination": "Talk / Build / Local API Worker Kit",
+      "promotion": "spec-first"
+    },
+    {
+      "id": "cert-river",
+      "destination": "Security Module / Receipt Validator",
+      "promotion": "checker-only"
+    },
+    {
+      "id": "artifact-compass-salvage",
+      "destination": "My Work / Recover / Artifact Compass",
+      "promotion": "search-and-handoff"
+    },
+    {
+      "id": "flashriver-flow",
+      "destination": "Handoff and small-worker coordination",
+      "promotion": "architecture-docs"
+    }
+  ],
+  "publicRepoPolicy": {
+    "rawSourceArchive": "do-not-commit",
+    "nestedSourceZips": "local-only",
+    "receipts": "metadata-only-unless-approved",
+    "docs": "public-safe-excerpts-only",
+    "visuals": "review-before-public-use"
+  },
+  "requiredHardening": [
+    "Use Path.relative_to containment before promoting TalkBox file worker",
+    "Keep Cloudflare as field kit only",
+    "Do not store raw private project data in GitHub or Cloudflare",
+    "Preserve PASS/FAIL/QUARANTINE receipt language"
+  ]
+}
