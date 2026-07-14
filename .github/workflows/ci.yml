@@ -1,0 +1,37 @@
+name: Workshop CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static-and-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python syntax
+        run: python -m py_compile companion/server.py companion/security.py companion/generation_layer.py
+      - name: JavaScript syntax
+        run: |
+          node --check app/assets/app.js
+          node --check cloudflare/worker/src/index.js
+          test ! -f functions/api/ai/chat.js || node --check functions/api/ai/chat.js
+      - name: Static Python tests
+        run: |
+          python tests/smoke_test.py
+          python -m unittest discover -s tests -p '*_test.py'
+      - name: Local companion API e2e
+        run: python tests/api_e2e_test.py
+      - name: Cloudflare Worker contract
+        run: node tests/cloudflare_worker_contract_test.mjs
+      - name: Build static Pages output
+        run: npm install && npm run build
