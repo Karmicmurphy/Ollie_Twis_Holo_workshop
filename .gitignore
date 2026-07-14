@@ -1,0 +1,32 @@
+# Local runtime state
+/data/workshop.sqlite3
+/data/workshop.sqlite3-*
+/data/cache/**
+/data/backups/*.zip
+/data/projects/**
+/data/imports/**
+/artifact-registry/*.json
+
+# Keep folder placeholders
+!/data/projects/.gitkeep
+!/data/imports/.gitkeep
+!/data/backups/.gitkeep
+!/data/cache/.gitkeep
+!/artifact-registry/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Cloudflare
+node_modules/
+dist/
+.wrangler/
+
+# Secrets and machine junk
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
