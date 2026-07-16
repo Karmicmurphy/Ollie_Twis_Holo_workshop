@@ -24,6 +24,7 @@ from security import (
     should_skip_import_path,
 )
 from generation_layer import create_generation_job, load_generation_adapters
+from flashriver_intake import stage_flashriver_package
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
@@ -31,6 +32,7 @@ DATA = ROOT / "data"
 PROJECTS = DATA / "projects"
 IMPORTS = DATA / "imports"
 BACKUPS = DATA / "backups"
+SOURCE_ARCHIVES = DATA / "source_archives"
 REGISTRY = ROOT / "artifact-registry"
 DB = DATA / "workshop.sqlite3"
 HOST = "127.0.0.1"
@@ -38,27 +40,22 @@ PORT = int(os.environ.get("TWIS_HOLO_PORT", "8787"))
 
 CAPABILITIES = {
     "name": "Twis Holo Local Companion",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "authoritative": True,
-    "storage": ["local-project-folders", "sqlite", "fts5", "sha256", "artifact-registry-json"],
+    "storage": ["local-project-folders", "sqlite", "fts5", "sha256", "artifact-registry-json", "local-source-archives"],
     "rooms": ["talk", "write", "music", "image", "video", "research", "code", "import", "modules"],
     "adapters": {
         "ai": ["built-in-fallback", "approved-openai-compatible-endpoint"],
         "generation": ["builtin-canvas", "builtin-storyboard", "local-comfyui-disabled", "video-generation-bridges-disabled"],
         "protocols": ["mcp-policy-gated", "ag-ui-event-contract", "a2a-card-gated"],
         "cloud": ["cloudflare-remote-hull-optional"],
+        "sourceArchive": ["flashriver-intake-local"],
     },
     "permissions": {
         "default": "deny-dangerous-actions",
         "requiresHumanApproval": [
-            "delete-permanent-source",
-            "publish",
-            "spend-money",
-            "run-shell-command",
-            "invoke-external-tool",
-            "send-private-memory",
-            "approve-canon",
-            "submit-generation-job",
+            "delete-permanent-source", "publish", "spend-money", "run-shell-command",
+            "invoke-external-tool", "send-private-memory", "approve-canon", "submit-generation-job",
         ],
     },
 }
@@ -82,6 +79,13 @@ SECURITY_POLICY = {
         "writesRequireTokenWhenConfigured": True,
         "localProjectRemainsSourceOfTruth": True,
     },
+    "sourceArchives": {
+        "rawArchivesStayLocal": True,
+        "nestedSourceZipsStayLocal": True,
+        "publicGitHubGetsOnlySafeCodeDocsTests": True,
+        "cloudflareAuthority": False,
+        "receiptRequired": True,
+    },
     "ai": {
         "advisoryOnly": True,
         "endpointAllowlist": "localhost-http-or-https-only",
@@ -97,7 +101,7 @@ SECURITY_POLICY = {
     },
 }
 
-for p in (PROJECTS, IMPORTS, BACKUPS, REGISTRY):
+for p in (PROJECTS, IMPORTS, BACKUPS, SOURCE_ARCHIVES, REGISTRY):
     p.mkdir(parents=True, exist_ok=True)
 
 
@@ -187,6 +191,16 @@ def add_receipt(con, project_id, action, actor, details):
     )
 
 
+def upsert_project(con, pid: str, title: str, description: str = "", next_action: str = "") -> None:
+    now = utc()
+    con.execute(
+        """INSERT INTO projects(id,title,description,next_action,created_at,updated_at)
+           VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+           title=excluded.title, description=excluded.description, next_action=excluded.next_action, updated_at=excluded.updated_at""",
+        (pid, title, description, next_action, now, now),
+    )
+
+
 def write_registry_snapshot() -> None:
     con = connect()
     projects = [dict(r) for r in con.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()]
@@ -199,8 +213,23 @@ def write_registry_snapshot() -> None:
     (REGISTRY / "receipts.json").write_text(json.dumps({"schemaVersion": "0.1", "exportedAt": now, "receipts": receipts}, indent=2), encoding="utf-8")
 
 
+def save_artifact_row(con, artifact: dict[str, Any]) -> None:
+    con.execute(
+        """INSERT INTO artifacts(id,project_id,kind,title,path,payload,authority_state,sha256,created_at,updated_at)
+           VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+           kind=excluded.kind,title=excluded.title,path=excluded.path,payload=excluded.payload,
+           authority_state=excluded.authority_state,sha256=excluded.sha256,updated_at=excluded.updated_at""",
+        (
+            artifact["id"], artifact["projectId"], artifact["kind"], artifact["title"], artifact.get("path", ""),
+            json.dumps(artifact.get("payload", {}), ensure_ascii=False), artifact.get("authorityState", "DRAFT"),
+            artifact.get("hash", ""), artifact.get("createdAt", utc()), artifact.get("updatedAt", utc()),
+        ),
+    )
+    index_artifact(con, artifact)
+
+
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "TwisHoloCompanion/1.2"
+    server_version = "TwisHoloCompanion/1.3"
 
     def translate_path(self, path):
         clean = urllib.parse.urlparse(path).path
@@ -291,11 +320,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if u.path == "/api/projects":
                 x = body_json(self); pid = safe_id(x.get("id") or x.get("title") or str(uuid.uuid4())); now = utc()
-                con = connect()
-                con.execute("""INSERT INTO projects(id,title,description,next_action,created_at,updated_at)
-                               VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-                               title=excluded.title,description=excluded.description,next_action=excluded.next_action,updated_at=excluded.updated_at""",
-                            (pid, x.get("title", "Untitled"), x.get("description", ""), x.get("nextAction", ""), x.get("createdAt", now), now))
+                con = connect(); upsert_project(con, pid, x.get("title", "Untitled"), x.get("description", ""), x.get("nextAction", ""))
                 add_receipt(con, pid, "project.upsert", "human", x); con.commit(); con.close()
                 pd = project_dir(pid)
                 (pd / "project.json").write_text(json.dumps({"id": pid, "title": x.get("title", "Untitled"), "description": x.get("description", ""), "nextAction": x.get("nextAction", ""), "updatedAt": now}, indent=2), encoding="utf-8")
@@ -309,13 +334,7 @@ class Handler(SimpleHTTPRequestHandler):
                     if p.exists() and p.is_file():
                         sha = hashlib.sha256(p.read_bytes()).hexdigest()
                 a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": x.get("authorityState", "DRAFT"), "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now}
-                con = connect()
-                con.execute("""INSERT INTO artifacts(id,project_id,kind,title,path,payload,authority_state,sha256,created_at,updated_at)
-                               VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-                               kind=excluded.kind,title=excluded.title,path=excluded.path,payload=excluded.payload,
-                               authority_state=excluded.authority_state,sha256=excluded.sha256,updated_at=excluded.updated_at""",
-                            (aid, pid, a["kind"], a["title"], rel, json.dumps(payload, ensure_ascii=False), a["authorityState"], sha, a["createdAt"], now))
-                index_artifact(con, a); add_receipt(con, pid, "artifact.upsert", "human-or-tool", a); con.commit(); con.close()
+                con = connect(); save_artifact_row(con, a); add_receipt(con, pid, "artifact.upsert", "human-or-tool", a); con.commit(); con.close()
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "artifact": a}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions"):
@@ -331,6 +350,39 @@ class Handler(SimpleHTTPRequestHandler):
                     json_response(self, 400, {"error": "unsafe path"}); return
                 p.parent.mkdir(parents=True, exist_ok=True); p.write_text(content, encoding="utf-8")
                 json_response(self, 200, {"ok": True, "path": rel}); return
+            if u.path == "/api/import-flashriver":
+                x = body_json(self)
+                source = Path(x.get("path", "")).expanduser().resolve()
+                pid = safe_id(x.get("projectId") or "flashriver-source-archive")
+                title = x.get("title") or "FlashRiver Source Archive"
+                expected = x.get("expectedSha256") or x.get("expected_sha256") or ""
+                pd = project_dir(pid)
+                now = utc()
+                result = stage_flashriver_package(
+                    zip_path=source,
+                    project_id=pid,
+                    project_root=pd,
+                    archive_root=SOURCE_ARCHIVES,
+                    expected_sha256=expected or None,
+                    now=now,
+                )
+                con = connect()
+                upsert_project(con, pid, title, "Private/local FlashRiver source archive intake", "Review imported source docs in My Work and Artifact Compass")
+                for artifact in result["artifacts"]:
+                    save_artifact_row(con, artifact)
+                add_receipt(con, pid, "flashriver.package.import", "human", {
+                    "sourcePath": str(source),
+                    "sha256": result["manifest"]["sha256"],
+                    "zipTest": result["manifest"]["zipTest"],
+                    "publicSafeDocsImported": result["manifest"]["publicSafeDocsImported"],
+                    "privateSourcesCopied": len(result["manifest"]["privateSourcesCopied"]),
+                    "visualsCopied": len(result["manifest"]["visualsCopied"]),
+                    "rawPackageCommittedToGitHub": False,
+                    "cloudflareAuthority": False,
+                })
+                con.commit(); con.close()
+                write_registry_snapshot()
+                json_response(self, 200, {"ok": True, "projectId": pid, "manifest": result["manifest"], "artifactCount": len(result["artifacts"])}); return
             if u.path == "/api/import-folder":
                 x = body_json(self); source = Path(x.get("path", "")).expanduser().resolve(); pid = safe_id(x.get("projectId", "imported-project"))
                 if not source.exists() or not source.is_dir():
@@ -351,8 +403,8 @@ class Handler(SimpleHTTPRequestHandler):
                         aid = str(uuid.uuid4()); now = utc(); kind = f.suffix.lower().lstrip(".") or "file"
                         sha = hashlib.sha256(target.read_bytes()).hexdigest()
                         payload = {"size": target.stat().st_size, "sourcePath": str(f), "importedPath": rel}
-                        con.execute("INSERT INTO artifacts VALUES(?,?,?,?,?,?,?,?,?,?)", (aid, pid, kind, target.name, rel, json.dumps(payload), "SOURCE", sha, now, now))
-                        index_artifact(con, {"id": aid, "projectId": pid, "title": target.name, "kind": kind, "payload": payload})
+                        artifact = {"id": aid, "projectId": pid, "kind": kind, "title": target.name, "path": rel, "payload": payload, "authorityState": "SOURCE", "hash": sha, "createdAt": now, "updatedAt": now}
+                        save_artifact_row(con, artifact)
                         count += 1
                 add_receipt(con, pid, "folder.import", "human", {"source": str(source), "count": count, "skipped": skipped[:500]}); con.commit(); con.close()
                 write_registry_snapshot()
