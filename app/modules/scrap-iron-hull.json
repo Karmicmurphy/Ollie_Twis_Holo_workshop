@@ -1,8 +1,8 @@
 {
-  "schemaVersion": "0.1",
-  "updatedAt": "2026-06-18",
+  "schemaVersion": "0.2",
+  "updatedAt": "2026-08-20",
   "name": "Scrap-Iron Cloud Hull",
-  "purpose": "Smallest useful hybrid powerhouse: local private core, phone capture, optional Cloudflare hull, gated MCP tools, light AI helpers, and receipt-first artifact workflows.",
+  "purpose": "Smallest useful hybrid powerhouse: local private core, phone capture, optional Cloudflare hull, gated tools, light AI helpers, and receipt-first artifact workflows.",
   "coreRule": "Local first. Cloud optional. Tools gated. Receipts always. UI explains itself.",
   "layers": [
     {
@@ -22,8 +22,8 @@
     {
       "id": "cloudflare-hull",
       "name": "Cloudflare Remote Hull",
-      "runsWhere": "Cloudflare Free Tier when configured",
-      "owns": ["remote inbox", "capsule relay", "receipt mirror", "D1 metadata", "R2 objects", "small Workers AI helper"],
+      "runsWhere": "Cloudflare free tier when configured",
+      "owns": ["public shell", "health", "capabilities", "optional field-kit AI"],
       "mustNotDelegate": ["source of truth", "unlimited AI", "raw local archive"]
     },
     {
@@ -35,15 +35,15 @@
     }
   ],
   "firstModules": [
-    "deep-sea-salvage",
+    "importer",
     "artifact-compass",
     "receipt-ledger",
     "signal-desk-pocket",
     "cloudflare-remote-hull",
     "mcp-gate",
-    "edge-ai-helper",
+    "tiny-ai-lane",
     "local-model-socket",
-    "voice-bench",
+    "talk",
     "generation-router"
   ],
   "userFlow": [

@@ -1,6 +1,6 @@
 {
   "name": "ollie-twis-holo-workshop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Local-first Twis Holo Workshop with optional Cloudflare remote hull.",
   "type": "module",
@@ -11,7 +11,8 @@
     "cf:dev": "wrangler dev -c wrangler.worker.jsonc",
     "cf:deploy": "wrangler deploy -c wrangler.worker.jsonc",
     "cf:dry": "wrangler deploy --dry-run -c wrangler.worker.jsonc",
-    "test:python": "python -m unittest discover -s tests -p '*_test.py' && python tests/smoke_test.py",
+    "test:static": "python -m pytest tests",
+    "test:python": "python -m pytest tests",
     "test:api": "python tests/api_e2e_test.py",
     "test:worker": "node tests/cloudflare_worker_contract_test.mjs",
     "test": "npm run test:python && npm run test:api && npm run test:worker"

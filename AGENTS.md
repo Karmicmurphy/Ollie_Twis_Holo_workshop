@@ -12,12 +12,13 @@ When the user says "build it," "fix it," "upgrade it," or "do another pass," do 
 
 1. Inspect the current repo state.
 2. Read the architecture and security docs.
-3. Pick the smallest useful implementation slice that moves the Workshop forward.
-4. Make the change.
-5. Run available tests.
-6. If tests fail, fix them.
-7. Commit or prepare the exact patch.
-8. Report what is working, what is partial, and what still needs manual credentials or local hardware.
+3. Read `CURRENT_STATE.md` before assuming GitHub matches the local Windows Workshop.
+4. Pick the smallest useful implementation slice that moves the Workshop forward.
+5. Make the change.
+6. Run available tests.
+7. If tests fail, fix them.
+8. Commit or prepare the exact patch.
+9. Report what is working, what is partial, and what still needs manual credentials or local hardware.
 
 Do not ask Randy to choose between framework toppings unless the choice truly blocks implementation.
 
@@ -29,9 +30,11 @@ Do not ask Randy to choose between framework toppings unless the choice truly bl
 - Cloudflare must not become the private project archive by default.
 - AI is advisory and replaceable.
 - Modules perform work; artifacts and receipts preserve the work.
+- If local and GitHub differ, do not silently rebuild the local state from memory. Compare and synchronize deliberately.
 
 ## Must-read files before substantial changes
 
+- `CURRENT_STATE.md`
 - `README.md`
 - `WORKSHOP_ARCHITECTURE.md`
 - `SECURITY_GATES.md`
@@ -49,6 +52,7 @@ Do not ask Randy to choose between framework toppings unless the choice truly bl
 6. Do not add paid APIs as core dependencies.
 7. Do not add autonomous write/delete/publish behavior without human approval.
 8. Prefer boring reliable code over fancy architecture.
+9. Treat CI as evidence only after it actually runs and passes on the current commit.
 
 ## Forbidden drift
 
@@ -59,6 +63,7 @@ Do not:
 - replace local authority with cloud authority;
 - treat memories as source truth when files exist;
 - claim a full build when an integration is only scaffolded;
+- claim an old release audit proves a newer commit is clean;
 - push private runtime data, SQLite databases, `.env`, tokens, raw recovered archives, browser profiles, cookies, or secret-like files;
 - add MCP/browser/agent tools that can write broadly without gates;
 - spend money, enable paid services, or trigger billable loops.

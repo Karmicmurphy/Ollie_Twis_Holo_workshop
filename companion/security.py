@@ -95,6 +95,8 @@ def read_json_body(handler, limit: int = MAX_JSON_BODY_BYTES) -> Any:
         n = int(raw_len)
     except ValueError as exc:
         raise ValueError("invalid content length") from exc
+    if n < 0:
+        raise ValueError("invalid content length")
     if n > limit:
         raise ValueError(f"request body too large; max {limit} bytes")
     raw = handler.rfile.read(n) if n else b"{}"
@@ -109,6 +111,8 @@ def is_secret_like(path: Path) -> bool:
 
 
 def should_skip_import_path(path: Path) -> tuple[bool, str]:
+    if path.is_symlink():
+        return True, "skipped symbolic link"
     parts = set(path.parts)
     for d in SKIP_DIR_NAMES:
         if d in parts:
