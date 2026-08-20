@@ -40,7 +40,7 @@ PORT = int(os.environ.get("TWIS_HOLO_PORT", "8787"))
 
 CAPABILITIES = {
     "name": "Twis Holo Local Companion",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "authoritative": True,
     "storage": ["local-project-folders", "sqlite", "fts5", "sha256", "artifact-registry-json", "local-source-archives"],
     "rooms": ["talk", "write", "music", "image", "video", "research", "code", "import", "modules"],
@@ -65,6 +65,7 @@ SECURITY_POLICY = {
         "host": HOST,
         "hostOriginChecks": True,
         "jsonBodyLimit": os.environ.get("TWIS_HOLO_MAX_JSON_BODY", str(2 * 1024 * 1024)),
+        "projectFileWrites": "project-derived-path-only-with-receipt",
     },
     "mcp": {
         "mode": "deny-by-default",
@@ -85,6 +86,7 @@ SECURITY_POLICY = {
         "publicGitHubGetsOnlySafeCodeDocsTests": True,
         "cloudflareAuthority": False,
         "receiptRequired": True,
+        "symlinksSkipped": True,
     },
     "ai": {
         "advisoryOnly": True,
@@ -166,13 +168,44 @@ def body_json(handler) -> Any:
 
 
 def project_dir(project_id: str) -> Path:
-    p = (PROJECTS / safe_id(project_id)).resolve()
-    if PROJECTS.resolve() not in p.parents and p != PROJECTS.resolve():
-        raise ValueError("unsafe path")
+    pid = safe_id(project_id)
+    p = (PROJECTS / pid).resolve()
+    if PROJECTS.resolve() not in p.parents:
+        raise ValueError("unsafe project path")
     p.mkdir(parents=True, exist_ok=True)
     for name in ("artifacts", "media", "sources", "drafts", "receipts", "sessions", "code", "imports"):
         (p / name).mkdir(exist_ok=True)
     return p
+
+
+def resolve_project_relative(project_id: str, rel: str) -> Path:
+    if not rel or Path(rel).is_absolute():
+        raise ValueError("project-relative path required")
+    root = project_dir(project_id).resolve()
+    p = (root / rel).resolve()
+    if p == root or root not in p.parents:
+        raise ValueError("unsafe project-relative path")
+    return p
+
+
+def resolve_projects_path(rel: str) -> tuple[str, Path]:
+    if not rel or Path(rel).is_absolute():
+        raise ValueError("project path required")
+    parts = Path(rel).parts
+    if len(parts) < 2 or parts[0] in {"", ".", ".."}:
+        raise ValueError("path must include project id and a file path")
+    pid = safe_id(parts[0])
+    if pid != parts[0]:
+        raise ValueError("invalid project id in path")
+    root = project_dir(pid).resolve()
+    p = (PROJECTS / rel).resolve()
+    if p == root or root not in p.parents:
+        raise ValueError("path escapes project boundary")
+    return pid, p
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def index_artifact(con, a):
@@ -229,7 +262,7 @@ def save_artifact_row(con, artifact: dict[str, Any]) -> None:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "TwisHoloCompanion/1.3"
+    server_version = "TwisHoloCompanion/1.4"
 
     def translate_path(self, path):
         clean = urllib.parse.urlparse(path).path
@@ -257,7 +290,7 @@ class Handler(SimpleHTTPRequestHandler):
                 con = connect(); rows = con.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall(); con.close()
                 json_response(self, 200, [dict(r) for r in rows]); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/artifacts"):
-                pid = u.path.split("/")[3]; search = (q.get("q") or [""])[0].strip()
+                pid = safe_id(u.path.split("/")[3]); search = (q.get("q") or [""])[0].strip()
                 con = connect()
                 if search:
                     try:
@@ -276,18 +309,16 @@ class Handler(SimpleHTTPRequestHandler):
                     d = dict(r); d["payload"] = json.loads(d["payload"]); out.append(d)
                 json_response(self, 200, out); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions/latest"):
-                pid = u.path.split("/")[3]; con = connect()
+                pid = safe_id(u.path.split("/")[3]); con = connect()
                 r = con.execute("SELECT * FROM sessions WHERE project_id=? ORDER BY created_at DESC LIMIT 1", (pid,)).fetchone(); con.close()
                 json_response(self, 200, dict(r) if r else None); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/receipts"):
-                pid = u.path.split("/")[3]; con = connect()
+                pid = safe_id(u.path.split("/")[3]); con = connect()
                 rows = con.execute("SELECT * FROM receipts WHERE project_id=? ORDER BY created_at DESC LIMIT 200", (pid,)).fetchall(); con.close()
                 json_response(self, 200, [dict(r) for r in rows]); return
-            if u.path.startswith("/api/files"):
+            if u.path == "/api/files":
                 rel = (q.get("path") or [""])[0]
-                p = (PROJECTS / rel).resolve()
-                if PROJECTS.resolve() not in p.parents:
-                    json_response(self, 400, {"error": "unsafe path"}); return
+                _pid, p = resolve_projects_path(rel)
                 if not p.exists() or not p.is_file():
                     json_response(self, 404, {"error": "not found"}); return
                 try:
@@ -297,10 +328,10 @@ class Handler(SimpleHTTPRequestHandler):
                     json_response(self, 415, {"error": "not text"})
                 return
             if u.path == "/api/tree":
-                pid = (q.get("projectId") or [""])[0]
+                pid = safe_id((q.get("projectId") or [""])[0])
                 p = project_dir(pid); files = []
                 for f in p.rglob("*"):
-                    if f.is_file():
+                    if f.is_file() and not f.is_symlink():
                         files.append(str(f.relative_to(PROJECTS)).replace("\\", "/"))
                 json_response(self, 200, files); return
             if u.path == "/api/modules":
@@ -310,6 +341,8 @@ class Handler(SimpleHTTPRequestHandler):
                 con = connect(); rows = con.execute("SELECT * FROM jobs ORDER BY updated_at DESC LIMIT 100").fetchall(); con.close()
                 json_response(self, 200, [dict(r) for r in rows]); return
             super().do_GET()
+        except ValueError as e:
+            json_response(self, 400, {"error": str(e)})
         except Exception as e:
             json_response(self, 500, {"error": str(e)})
 
@@ -327,29 +360,42 @@ class Handler(SimpleHTTPRequestHandler):
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "id": pid}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/artifacts"):
-                pid = u.path.split("/")[3]; x = body_json(self); now = utc()
+                pid = safe_id(u.path.split("/")[3]); x = body_json(self); now = utc()
                 aid = x.get("id") or str(uuid.uuid4()); payload = x.get("payload", {}); rel = x.get("path", ""); sha = ""
                 if rel:
-                    p = (project_dir(pid) / rel).resolve()
+                    p = resolve_project_relative(pid, rel)
                     if p.exists() and p.is_file():
-                        sha = hashlib.sha256(p.read_bytes()).hexdigest()
+                        sha = sha256_file(p)
                 a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": x.get("authorityState", "DRAFT"), "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now}
                 con = connect(); save_artifact_row(con, a); add_receipt(con, pid, "artifact.upsert", "human-or-tool", a); con.commit(); con.close()
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "artifact": a}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions"):
-                pid = u.path.split("/")[3]; x = body_json(self); sid = x.get("id") or str(uuid.uuid4()); now = utc()
+                pid = safe_id(u.path.split("/")[3]); x = body_json(self); sid = x.get("id") or str(uuid.uuid4()); now = utc()
                 con = connect()
                 con.execute("INSERT OR REPLACE INTO sessions VALUES(?,?,?,?,?,?,?,?)", (sid, pid, x.get("room", "home"), x.get("summary", ""), json.dumps(x.get("activeConstraints", []), ensure_ascii=False), x.get("nextAction", ""), x.get("createdAt", now), x.get("closedAt")))
                 add_receipt(con, pid, "session.save", "human", x); con.commit(); con.close()
                 json_response(self, 200, {"ok": True, "id": sid}); return
             if u.path == "/api/files":
                 x = body_json(self); rel = x.get("path", ""); content = x.get("content", "")
-                p = (PROJECTS / rel).resolve()
-                if PROJECTS.resolve() not in p.parents:
-                    json_response(self, 400, {"error": "unsafe path"}); return
-                p.parent.mkdir(parents=True, exist_ok=True); p.write_text(content, encoding="utf-8")
-                json_response(self, 200, {"ok": True, "path": rel}); return
+                pid, p = resolve_projects_path(rel)
+                requested_pid = x.get("projectId")
+                if requested_pid and safe_id(requested_pid) != pid:
+                    json_response(self, 400, {"error": "projectId does not match file path"}); return
+                old_hash = sha256_file(p) if p.exists() and p.is_file() else ""
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(content, encoding="utf-8")
+                new_hash = sha256_file(p)
+                con = connect()
+                add_receipt(con, pid, "project.file.write", "human", {
+                    "path": rel,
+                    "oldSha256": old_hash,
+                    "newSha256": new_hash,
+                    "bytes": len(content.encode("utf-8")),
+                })
+                con.commit(); con.close()
+                write_registry_snapshot()
+                json_response(self, 200, {"ok": True, "path": rel, "sha256": new_hash}); return
             if u.path == "/api/import-flashriver":
                 x = body_json(self)
                 source = Path(x.get("path", "")).expanduser().resolve()
@@ -392,16 +438,19 @@ class Handler(SimpleHTTPRequestHandler):
                 for f in source.rglob("*"):
                     skip, reason = should_skip_import_path(f)
                     if skip:
-                        if f.is_file():
-                            skipped.append({"path": str(f), "reason": reason})
+                        skipped.append({"path": str(f), "reason": reason})
                         continue
                     if f.is_file():
                         rel_source = f.relative_to(source)
-                        target = dest / rel_source; target.parent.mkdir(parents=True, exist_ok=True)
+                        target = (dest / rel_source).resolve()
+                        if dest.resolve() not in target.parents:
+                            skipped.append({"path": str(f), "reason": "resolved target escapes import destination"})
+                            continue
+                        target.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(f, target)
                         rel = str(target.relative_to(project_dir(pid))).replace("\\", "/")
                         aid = str(uuid.uuid4()); now = utc(); kind = f.suffix.lower().lstrip(".") or "file"
-                        sha = hashlib.sha256(target.read_bytes()).hexdigest()
+                        sha = sha256_file(target)
                         payload = {"size": target.stat().st_size, "sourcePath": str(f), "importedPath": rel}
                         artifact = {"id": aid, "projectId": pid, "kind": kind, "title": target.name, "path": rel, "payload": payload, "authorityState": "SOURCE", "hash": sha, "createdAt": now, "updatedAt": now}
                         save_artifact_row(con, artifact)
@@ -410,11 +459,12 @@ class Handler(SimpleHTTPRequestHandler):
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "count": count, "skipped": skipped, "destination": str(dest)}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/capsule"):
-                pid = u.path.split("/")[3]; p = project_dir(pid); out = BACKUPS / f"{pid}-{int(time.time())}.zip"
+                pid = safe_id(u.path.split("/")[3]); p = project_dir(pid); out = BACKUPS / f"{pid}-{int(time.time())}.zip"
                 write_registry_snapshot()
                 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
                     for f in p.rglob("*"):
-                        if f.is_file(): z.write(f, f.relative_to(p.parent))
+                        if f.is_file() and not f.is_symlink():
+                            z.write(f, f.relative_to(p.parent))
                     for f in REGISTRY.glob("*.json"):
                         z.write(f, Path("artifact-registry") / f.name)
                     con = connect()
@@ -445,7 +495,7 @@ class Handler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     json_response(self, 502, {"error": str(e)}); return
             if u.path == "/api/generation/jobs":
-                x = body_json(self); pid = x.get("projectId", "")
+                x = body_json(self); pid = safe_id(x.get("projectId", ""))
                 out = create_generation_job(pid, x)
                 if not out.get("ok"):
                     json_response(self, 400, out); return
@@ -454,8 +504,10 @@ class Handler(SimpleHTTPRequestHandler):
                 add_receipt(con, pid, "generation.job.queued", "human", job); con.commit(); con.close()
                 json_response(self, 200, {"ok": True, "id": job["id"], "status": job["status"]}); return
             if u.path == "/api/jobs":
-                x = body_json(self); jid = str(uuid.uuid4()); now = utc()
-                con = connect(); con.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?)", (jid, x.get("projectId", ""), x.get("operation", "unknown"), "queued", json.dumps(x), "{}", now, now)); con.commit(); con.close()
+                x = body_json(self); jid = str(uuid.uuid4()); now = utc(); pid = safe_id(x.get("projectId", "unassigned"))
+                con = connect(); con.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?)", (jid, pid, x.get("operation", "unknown"), "queued", json.dumps(x), "{}", now, now))
+                add_receipt(con, pid, "job.queued", "human-or-tool", {"id": jid, "operation": x.get("operation", "unknown")})
+                con.commit(); con.close()
                 json_response(self, 200, {"ok": True, "id": jid, "status": "queued"}); return
             json_response(self, 404, {"error": "not found"})
         except ValueError as e:
