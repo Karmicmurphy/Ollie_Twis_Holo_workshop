@@ -18,25 +18,38 @@ def test_holo_guide_assets_exist():
 def test_scrap_iron_hull_contract_is_valid_json():
     data = json.loads((ROOT / "app" / "modules" / "scrap-iron-hull.json").read_text(encoding="utf-8"))
     assert data["coreRule"] == "Local first. Cloud optional. Tools gated. Receipts always. UI explains itself."
-    assert "deep-sea-salvage" in data["firstModules"]
-    assert "artifact-compass" in data["firstModules"]
-    assert "mcp-gate" in data["firstModules"]
+    first = set(data["firstModules"])
+    required = {
+        "importer",
+        "artifact-compass",
+        "receipt-ledger",
+        "mcp-gate",
+        "local-model-socket",
+        "generation-router",
+    }
+    assert required.issubset(first)
+    assert "deep-sea-salvage" not in first
+    assert "edge-ai-helper" not in first
 
 
-def test_powerhouse_modules_are_registered():
+def test_powerhouse_modules_are_registered_and_manifest_is_not_stale():
     modules = json.loads((ROOT / "app" / "modules" / "modules.json").read_text(encoding="utf-8"))
     ids = {module["id"] for module in modules}
     required = {
-        "deep-sea-salvage",
+        "importer",
         "artifact-compass",
         "receipt-ledger",
         "signal-desk-pocket",
-        "edge-ai-helper",
+        "cloudflare-remote-hull",
+        "tiny-ai-lane",
         "local-model-socket",
         "generation-router",
         "mcp-gate",
     }
     assert required.issubset(ids)
+
+    hull = json.loads((ROOT / "app" / "modules" / "scrap-iron-hull.json").read_text(encoding="utf-8"))
+    assert set(hull["firstModules"]).issubset(ids)
 
 
 def test_ui_skill_and_harness_docs_exist():
