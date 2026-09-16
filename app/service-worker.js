@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v4-loopdeck";
+const CACHE_NAME = "twis-holo-workshop-v5-loopdeck";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const APP_SHELL = [
   "./assets/twis-loop-deck.css",
   "./assets/twis-loop-deck-v2.js",
   "./assets/twis-loop-deck-modules.js",
+  "./assets/twis-loop-calibration.js",
   "./assets/loop-recorder-worklet.js",
   "./assets/road-signal-machine.js",
   "./assets/install-workshop.js",
