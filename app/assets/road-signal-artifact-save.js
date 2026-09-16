@@ -142,9 +142,30 @@
     $("#rsSaveLyrics", panel).onclick = () => buildThenSave("#rsBuildLyric", "road-signal-lyrics", "Road-Signal Lyrics");
   }
 
+  function installLoopDeckLauncher() {
+    const music = document.querySelector('[data-panel="music"] .panel');
+    if (!music || $("#openTwisLoopDeck", music)) return;
+    const button = document.createElement("button");
+    button.id = "openTwisLoopDeck";
+    button.className = "primary";
+    button.textContent = "OPEN TWIS LOOP DECK V2";
+    button.style.cssText = "width:100%;min-height:54px;margin:0 0 14px;font-weight:900;letter-spacing:.04em";
+    button.onclick = () => {
+      window.location.href = "./loop-deck.html";
+    };
+    music.prepend(button);
+  }
+
   document.addEventListener("click", e => {
-    if (e.target?.dataset?.room === "music") setTimeout(install, 120);
+    if (e.target?.dataset?.room === "music") {
+      setTimeout(install, 120);
+      setTimeout(installLoopDeckLauncher, 80);
+    }
   });
-  setInterval(install, 1000);
+  setInterval(() => {
+    install();
+    installLoopDeckLauncher();
+  }, 1000);
+  installLoopDeckLauncher();
   window.twisHoloSaveRoadSignalArtifact = saveRoadSignalArtifact;
 })();
