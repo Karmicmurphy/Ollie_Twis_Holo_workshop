@@ -216,3 +216,15 @@ Verdict: REJECT from distributed core when a permissive mechanism exists. Do not
 
 ## Definition of success
 The Loop Deck is successful when the user can install it on Android, open it without an account, make a beat immediately, import a track, extract useful loops, record/overdub in phase, save the audio locally, reopen it, perform with pads/FX/MIDI, and export a result without paying for a service or sending private audio to a server.
+
+## Work Mode proof pass — 2026-09-16
+
+Artifact Compass rechecked the phone-install and local-durability boundary against current browser guidance.
+
+- Chromium install fallback: add dedicated 192×192 and 512×512 PNG icons while retaining the scalable SVG. Source: https://web.dev/articles/add-manifest
+- Separate installed-app identity: use `loop-deck.webmanifest` with `/loop-deck.html` as both app ID and launch target so installing the looper does not open the general Workshop home.
+- Local-audio durability: request persistent origin storage on the first real user gesture, with silent feature-detected fallback. OPFS remains local and may still be deleted by the user. Sources: https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria and https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist
+
+Artifact Salvage verdict: KEEP. These additions use standards and original assets, add no runtime package, no paid service, no account dependency, and no cloud audio upload.
+
+Proof boundary remains honest: automated contracts can prove wiring, parsing, build output, cache coverage and manifest correctness; only Randy's actual Android phone can prove microphone latency, speaker feedback behavior, storage-persistence grant and comfortable touch performance.

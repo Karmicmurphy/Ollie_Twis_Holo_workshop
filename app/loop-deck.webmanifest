@@ -1,0 +1,32 @@
+{
+  "name": "TWIS LOOP DECK",
+  "short_name": "Loop Deck",
+  "description": "A local-first live looper, sampler, beat machine, and track slicer for your phone.",
+  "id": "/loop-deck.html",
+  "start_url": "./loop-deck.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07090b",
+  "theme_color": "#07090b",
+  "icons": [
+    {
+      "src": "assets/icons/twis-loop-deck-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/twis-loop-deck-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/twis-loop-deck-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

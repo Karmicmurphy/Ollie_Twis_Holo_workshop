@@ -1,8 +1,9 @@
-const CACHE_NAME = "twis-holo-workshop-v5-loopdeck";
+const CACHE_NAME = "twis-holo-workshop-v6-loopdeck-install";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./loop-deck.html",
+  "./loop-deck.webmanifest",
   "./manifest.webmanifest",
   "./assets/style.css",
   "./assets/app.js",
@@ -13,7 +14,10 @@ const APP_SHELL = [
   "./assets/loop-recorder-worklet.js",
   "./assets/road-signal-machine.js",
   "./assets/install-workshop.js",
-  "./assets/icons/twis-holo-icon.svg"
+  "./assets/icons/twis-holo-icon.svg",
+  "./assets/icons/twis-loop-deck-icon.svg",
+  "./assets/icons/twis-loop-deck-icon-192.png",
+  "./assets/icons/twis-loop-deck-icon-512.png"
 ];
 
 self.addEventListener("install", event => {

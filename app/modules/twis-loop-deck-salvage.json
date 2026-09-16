@@ -1,7 +1,7 @@
 {
   "id": "twis-loop-deck-salvage-v1",
   "name": "TWIS LOOP DECK",
-  "status": "working-browser-v1",
+  "status": "working-browser-v2",
   "entry": "../loop-deck.html",
   "purpose": "Phone-first local looping, sampling, sequencing, recording, slicing and performance workstation.",
   "salvage_rules": {
@@ -20,16 +20,21 @@
     "local BPM estimation",
     "bar slicing and build-kit mapping",
     "master filter and stutter performance controls",
-    "master mix capture export",
-    "local pattern/state persistence",
+    "frame-accurate AudioWorklet loop recording",
+    "quantized overdub with undo and phase-locked relaunch",
+    "OPFS loop and imported-audio persistence",
+    "persistent-storage request on first user gesture",
+    "WAV master capture export",
+    "optional Web MIDI input",
+    "manual latency calibration and waveform region selection",
+    "dedicated Android-install manifest with 192 and 512 pixel icons",
     "phone-first fullscreen UI"
   ],
   "deferred": [
-    "phase-locked AudioWorklet recording engine",
-    "high-quality independent time stretch",
-    "OPFS persistent audio blobs",
+    "real Android microphone and round-trip latency proof",
+    "fully offline vendored independent time stretch",
     "local stem separation",
-    "latency calibration beyond browser baseLatency display"
+    "device-specific storage-persistence grant proof"
   ],
-  "rights": "Core v1 uses browser APIs and original Workshop code only. External salvage candidates remain unbundled until rights/provenance review."
+  "rights": "Core v2 uses browser APIs and original Workshop code only. The optional pinned Signalsmith MIT module remains non-core and network-loaded only after explicit user action."
 }

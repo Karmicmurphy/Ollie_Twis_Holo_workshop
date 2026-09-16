@@ -13,9 +13,15 @@ const state={
   micStream:null,micSource:null,recorderNode:null,recorderSilent:null,recordTarget:-1,pendingCapture:null,
   importBuffer:null,importFile:null,importName:'',bpmGuess:0,beatOffset:0,transients:[],slices:[],sliceMode:'1 BAR',syncMode:'REPITCH',
   masterVolume:.9, scene:0, scenes:[null,null,null,null], tap:[], latencyOffsetMs:Number(localStorage.twisLoopOffsetMs||0),
-  mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false
+  mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false, storagePersistent:false
 };
+let persistRequested=false;
 function status(text){const el=$('#ldStatus');if(el)el.textContent=text;}
+async function protectStorage(){
+  if(persistRequested||!navigator.storage?.persist)return;
+  persistRequested=true;
+  try{state.storagePersistent=await navigator.storage.persist();}catch{state.storagePersistent=false;}
+}
 function audio(){
   if(state.ctx)return state.ctx;
   const C=window.AudioContext||window.webkitAudioContext;
@@ -134,7 +140,7 @@ function buildUI(){if($('#twisLoopDeck'))return;const host=document.createElemen
 <div class="ld-page" data-page="seq"><div class="ld-section"><h3>SEQUENCER · TAP=VELOCITY · HOLD=RATCHET</h3><div class="ld-toolbar"><button id="ldSeqClear" class="ld-btn danger">CLEAR</button><button id="ldSeqRandom" class="ld-btn">RANDOM</button></div><div id="ldSeq"></div></div></div>
 <div class="ld-page" data-page="import"><div class="ld-section"><h3>SMART LOOP LAB · LOCAL ONLY</h3><div class="ld-import"><input id="ldFile" type="file" accept="audio/*"><p>Song stays on this device. OPFS persistence when supported.</p></div><canvas id="ldWave" class="ld-wave" width="900" height="220"></canvas><div class="ld-stat"><div><b id="ldDur">0:00</b><span>DURATION</span></div><div><b id="ldGuess">—</b><span>BPM</span></div><div><b id="ldSlicesN">0</b><span>SLICES</span></div></div><div class="ld-toolbar"><button id="ldAnalyze" class="ld-btn primary">ANALYZE</button><select id="ldSliceMode"><option>TRANSIENTS</option><option>1 BEAT</option><option>2 BEATS</option><option selected>1 BAR</option><option>2 BARS</option><option>4 BARS</option><option>EQUAL 8</option><option>EQUAL 16</option></select><button id="ldBuildKit" class="ld-btn">BUILD KIT</button></div><div class="ld-slices" id="ldSlices"></div></div></div>
 <div class="ld-page" data-page="mix"><div class="ld-section"><h3>PERFORMANCE</h3><div class="ld-mixrow"><span>MASTER</span><input id="ldMaster" type="range" min="0" max="1.2" step=".01" value="${state.masterVolume}"><span id="ldMasterV">${Math.round(state.masterVolume*100)}%</span></div><div class="ld-mixrow"><span>CUTOFF</span><input id="ldCutoff" type="range" min="120" max="18000" step="10" value="18000"><span>LPF</span></div><div class="ld-xy" id="ldXY"><div class="ld-xy-dot" id="ldXYDot"></div></div><div class="ld-toolbar">${[2,4,8,16].map(x=>`<button class="ld-btn" data-stutter="${x}">1/${x}</button>`).join('')}</div><p class="ld-mini">Current tempo-fit for imported slices: REPITCH. Pitch-preserving Signalsmith module is rights-clean and staged next, but this control does not pretend it is active yet.</p></div></div>
-<div id="ldStatus" class="ld-status">Tap PLAY or a pad to unlock audio.</div></div><div class="ld-tabs">${['loop','pads','seq','import','mix'].map((n,i)=>`<button class="ld-tab ${i===0?'active':''}" data-tab="${n}">${n.toUpperCase()}</button>`).join('')}</div>`;document.body.appendChild(host);renderPads();renderLoops();renderSeq();bind();}
+<div id="ldStatus" class="ld-status">Tap PLAY or a pad to unlock audio.</div></div><div class="ld-tabs">${['loop','pads','seq','import','mix'].map((n,i)=>`<button class="ld-tab ${i===0?'active':''}" data-tab="${n}">${n.toUpperCase()}</button>`).join('')}</div>`;host.addEventListener('pointerdown',protectStorage,{once:true,capture:true});document.body.appendChild(host);renderPads();renderLoops();renderSeq();bind();}
 function bind(){
   $('#ldClose').onclick=()=>$('#twisLoopDeck').remove();$('#ldPlay').onclick=()=>state.playing?stop():play();$('#ldBpm').onchange=e=>setBpm(e.target.value);$('#ldTap').onclick=tapTempo;$('#ldMicEnable').onclick=ensureMic;$('#ldMixRec').onclick=captureMix;$('#ldMidi').onclick=midiEnable;
   $$('.ld-tab').forEach(b=>b.onclick=()=>{$$('.ld-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.ld-page').forEach(x=>x.classList.toggle('active',x.dataset.page===b.dataset.tab));});
