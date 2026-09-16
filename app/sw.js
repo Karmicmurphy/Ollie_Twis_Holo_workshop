@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v6-loopdeck-install";
+const CACHE_NAME = "twis-holo-workshop-v7-loopforge";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,7 +11,9 @@ const APP_SHELL = [
   "./assets/twis-loop-deck-v2.js",
   "./assets/twis-loop-deck-modules.js",
   "./assets/twis-loop-calibration.js",
+  "./assets/twis-loop-forge.js",
   "./assets/loop-recorder-worklet.js",
+  "./assets/ghost-ring-worklet.js",
   "./assets/road-signal-machine.js",
   "./assets/install-workshop.js",
   "./assets/icons/twis-holo-icon.svg",
