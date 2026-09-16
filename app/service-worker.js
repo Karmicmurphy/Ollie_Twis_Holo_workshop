@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v12-network-first";
+const CACHE_NAME = "twis-holo-workshop-v13-perform";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "./assets/twis-loop-guide.js",
   "./assets/twis-loop-colors.js",
   "./assets/twis-loop-fuckit.js",
+  "./assets/twis-loop-performance.js",
   "./assets/loop-recorder-worklet.js",
   "./assets/ghost-ring-worklet.js",
   "./assets/road-signal-machine.js",
@@ -26,35 +27,18 @@ const APP_SHELL = [
   "./assets/icons/twis-loop-deck-icon-192.png",
   "./assets/icons/twis-loop-deck-icon-512.png"
 ];
-
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
-
 self.addEventListener("activate", event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
-
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
-
   const isNavigation = event.request.mode === "navigate" || event.request.destination === "document";
   if (isNavigation) {
-    event.respondWith(
-      fetch(event.request, { cache: "no-store" }).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
-        return response;
-      }).catch(() => caches.match(event.request).then(cached => cached || caches.match("./loop-deck.html") || caches.match("./index.html")))
-    );
+    event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./loop-deck.html")||caches.match("./index.html"))));
     return;
   }
-
-  event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
-      return response;
-    }).catch(() => caches.match("./index.html")))
-  );
+  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});return response;}).catch(()=>caches.match("./index.html"))));
 });
