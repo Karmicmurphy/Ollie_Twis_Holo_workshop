@@ -1,4 +1,4 @@
-name: Deploy Workshop to GitHub Pages
+name: USE MY LOOPING DECK
 
 on:
   push:
@@ -19,24 +19,27 @@ concurrency:
 
 jobs:
   deploy:
+    name: Publish Loop Deck
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}loop-deck.html
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Workshop
         uses: actions/checkout@v4
 
-      - name: Configure Pages
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Workshop app
         uses: actions/upload-pages-artifact@v3
         with:
           path: app
 
-      - name: Deploy to GitHub Pages
+      - name: Publish Loop Deck
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Show Loop Deck URL
+        run: |
+          echo "TWIS LOOP DECK: ${{ steps.deployment.outputs.page_url }}loop-deck.html"
