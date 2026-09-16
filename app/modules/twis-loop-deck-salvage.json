@@ -1,0 +1,35 @@
+{
+  "id": "twis-loop-deck-salvage-v1",
+  "name": "TWIS LOOP DECK",
+  "status": "working-browser-v1",
+  "entry": "../loop-deck.html",
+  "purpose": "Phone-first local looping, sampling, sequencing, recording, slicing and performance workstation.",
+  "salvage_rules": {
+    "mechanism_first": true,
+    "local_first": true,
+    "no_paid_runtime_required": true,
+    "no_cloud_audio_upload": true,
+    "no_fake_controls": true
+  },
+  "implemented": [
+    "single Web Audio graph",
+    "16 synthesized starter pads",
+    "16-step sequencer",
+    "8 microphone loop slots",
+    "local track import and waveform",
+    "local BPM estimation",
+    "bar slicing and build-kit mapping",
+    "master filter and stutter performance controls",
+    "master mix capture export",
+    "local pattern/state persistence",
+    "phone-first fullscreen UI"
+  ],
+  "deferred": [
+    "phase-locked AudioWorklet recording engine",
+    "high-quality independent time stretch",
+    "OPFS persistent audio blobs",
+    "local stem separation",
+    "latency calibration beyond browser baseLatency display"
+  ],
+  "rights": "Core v1 uses browser APIs and original Workshop code only. External salvage candidates remain unbundled until rights/provenance review."
+}
