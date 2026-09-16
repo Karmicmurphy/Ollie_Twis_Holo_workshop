@@ -20,6 +20,8 @@
 <script src="assets/twis-loop-calibration.js"></script>
 <script src="assets/twis-loop-forge.js"></script>
 <script src="assets/twis-loop-sound-rack.js"></script>
-<script>window.addEventListener('DOMContentLoaded',()=>{const go=()=>{document.getElementById('boot').style.display='none';window.TWIS_LOOP_DECK.open();setTimeout(()=>{window.TWIS_LOOP_MODULES?.install();window.TWIS_LOOP_CALIBRATION?.install();window.TWIS_LOOP_FORGE?.install();window.TWIS_LOOP_SOUND_RACK?.install()},80)};document.getElementById('bootBtn').onclick=go;go()});if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
+<script src="assets/twis-loop-personal-packs.js"></script>
+<script src="assets/twis-loop-guide.js"></script>
+<script>window.addEventListener('DOMContentLoaded',()=>{const go=()=>{document.getElementById('boot').style.display='none';window.TWIS_LOOP_DECK.open();setTimeout(()=>{window.TWIS_LOOP_MODULES?.install();window.TWIS_LOOP_CALIBRATION?.install();window.TWIS_LOOP_FORGE?.install();window.TWIS_LOOP_SOUND_RACK?.install();window.TWIS_LOOP_PERSONAL_PACKS?.install();window.TWIS_LOOP_GUIDE?.install()},80)};document.getElementById('bootBtn').onclick=go;go()});if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body>
 </html>
