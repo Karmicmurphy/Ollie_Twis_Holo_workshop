@@ -12,8 +12,8 @@
 <style>html,body{margin:0;background:#07090b;min-height:100%;font-family:system-ui,sans-serif}.boot{display:grid;place-items:center;height:100dvh;color:#dce8ed}.boot button{min-width:220px;min-height:60px;border-radius:14px;border:1px solid #35c889;background:#15382c;color:#fff;font-size:18px;font-weight:900;letter-spacing:.05em}</style>
 </head>
 <body>
-<div class="boot" id="boot"><button id="bootBtn">OPEN TWIS LOOP DECK</button></div>
-<script src="assets/twis-loop-deck.js"></script>
+<div class="boot" id="boot"><button id="bootBtn">OPEN TWIS LOOP DECK V2</button></div>
+<script src="assets/twis-loop-deck-v2.js"></script>
 <script>window.addEventListener('DOMContentLoaded',()=>{const go=()=>{document.getElementById('boot').style.display='none';window.TWIS_LOOP_DECK.open()};document.getElementById('bootBtn').onclick=go;go()});if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body>
 </html>
