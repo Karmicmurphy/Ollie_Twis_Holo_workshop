@@ -452,7 +452,7 @@ class Handler(SimpleHTTPRequestHandler):
                 json_response(self, 200, out); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/history"):
                 parts = u.path.strip("/").split("/")
-                if len(parts) == 7 and parts[0] == "api" and parts[1] == "projects" and parts[3] == "artifacts":
+                if len(parts) == 6 and parts[0] == "api" and parts[1] == "projects" and parts[3] == "artifacts":
                     pid = safe_id(parts[2]); aid = parts[4]
                     con = connect()
                     owner = con.execute("SELECT project_id FROM artifacts WHERE id=?", (aid,)).fetchone()
