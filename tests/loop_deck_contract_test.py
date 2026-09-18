@@ -99,3 +99,10 @@ def test_simple_perform_contract_present():
     assert "navigator.storage?.getDirectory" in simple
     assert "loadPresetToPad" in sound and "loadFileToPad" in sound
     assert "ghostCatch:ghost" in forge and "undoLast" in forge
+
+
+def test_simple_perform_is_not_overridden_by_legacy_guide():
+    guide = (APP / "assets" / "twis-loop-guide.js").read_text(encoding="utf-8")
+    html = (APP / "loop-deck.html").read_text(encoding="utf-8")
+    assert "TWIS_SIMPLE_PERFORM" in html
+    assert "setTimeout(()=>go('guide'),40)" not in guide
