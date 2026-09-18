@@ -12,7 +12,9 @@ def test_loop_deck_entry_wires_v2_modules():
     assert "assets/twis-loop-deck-v2.js" in html
     assert "assets/twis-loop-deck-modules.js" in html
     assert "TWIS_LOOP_MODULES" in html
-    assert "sw.js" in html
+    assert "service-worker.js" in html
+    assert "assets/twis-simple-perform.js" in html
+    assert "TWIS_SIMPLE_PERFORM" in html
     assert 'href="loop-deck.webmanifest"' in html
 
 
@@ -59,6 +61,7 @@ def test_loop_deck_service_workers_share_cache_contract():
         "./loop-deck.webmanifest",
         "./assets/twis-loop-deck-v2.js",
         "./assets/twis-loop-deck-modules.js",
+        "./assets/twis-simple-perform.js",
         "./assets/loop-recorder-worklet.js",
         "./assets/icons/twis-loop-deck-icon.svg",
         "./assets/icons/twis-loop-deck-icon-192.png",
@@ -75,6 +78,24 @@ def test_loop_deck_javascript_parses_when_node_is_available():
         "app/assets/twis-loop-deck-v2.js",
         "app/assets/twis-loop-deck-modules.js",
         "app/assets/twis-loop-calibration.js",
+        "app/assets/twis-loop-sound-rack.js",
+        "app/assets/twis-loop-forge.js",
+        "app/assets/twis-simple-perform.js",
         "app/assets/loop-recorder-worklet.js",
     ):
         subprocess.run([node, "--check", str(ROOT / rel)], check=True, capture_output=True, text=True)
+
+
+def test_simple_perform_contract_present():
+    simple = (APP / "assets" / "twis-simple-perform.js").read_text(encoding="utf-8")
+    sound = (APP / "assets" / "twis-loop-sound-rack.js").read_text(encoding="utf-8")
+    forge = (APP / "assets" / "twis-loop-forge.js").read_text(encoding="utf-8")
+    for label in ("KICK", "BASS", "HATS", "PERC", "PAD", "MELODY", "FX", "VOCAL"):
+        assert label in simple
+    assert "DEEP MELODIC HOUSE" in simple
+    assert "GHOST — CATCH THAT" in simple
+    assert "FUCK IT" in simple
+    assert "SAVE / LOAD" in simple
+    assert "navigator.storage?.getDirectory" in simple
+    assert "loadPresetToPad" in sound and "loadFileToPad" in sound
+    assert "ghostCatch:ghost" in forge and "undoLast" in forge
