@@ -47,6 +47,25 @@
       "cost": "free-core/cloud-optional"
     },
     {
+      "id": "digital-salvage-expedition",
+      "name": "Artifact Compass Digital Salvage",
+      "inputs": [
+        "mission",
+        "target-domain",
+        "constraints"
+      ],
+      "outputs": [
+        "digital-salvage-cards",
+        "capability-packet",
+        "smallest-proof"
+      ],
+      "permissions": [
+        "network:optional",
+        "artifact:create"
+      ],
+      "cost": "free-core/cloud-optional"
+    },
+    {
       "id": "make-beat",
       "name": "Make Beat",
       "inputs": [
