@@ -215,5 +215,9 @@ def main():
         temp.cleanup()
 
 
+def test_phase1a_revision_matrix():
+    main()
+
+
 if __name__ == "__main__":
     main()
