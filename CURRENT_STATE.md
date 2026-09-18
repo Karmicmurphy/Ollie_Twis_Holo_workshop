@@ -1,6 +1,33 @@
 # Twis Holo Workshop — Current Repository State
 
-Updated: 2026-08-20
+Updated: 2026-09-18
+
+## Living Workshop Main Build — Phase 1A candidate
+
+Evidence state: **IMPLEMENTED_UNPROVEN**
+
+Active branch: `living-workshop-main-build`
+
+The branch now contains the first bounded Phase 1A implementation for artifact revision preservation:
+
+- immutable `artifact_revisions` snapshots with SHA-256 identity;
+- additive migration/backfill for existing artifact rows;
+- same-project artifact identity enforcement;
+- required `expectedRevision` optimistic concurrency on generic artifact mutation;
+- atomic projection + revision + receipt transaction path;
+- generic-route blocks for protected source mutation and Canon promotion;
+- retirement/tombstone semantics instead of destructive generic artifact deletion;
+- FTS limited to the current non-retired projection;
+- artifact history API;
+- My Work History control showing revision number, authority state, timestamp, hash, and snapshot;
+- capsule export inclusion for artifact revisions;
+- immutable SQL triggers rejecting revision UPDATE/DELETE;
+- an injected-failure rollback proof path enabled only under the test environment;
+- a Phase 1A pytest proof covering ten mixed artifacts, FTS, restart recovery, history, capsule revisions, protected source rejection, cross-project ID reuse rejection, stale-writer rejection, SQL tamper rejection, rollback, retirement, and the visible History control.
+
+The current ChatGPT execution environment could not download the branch archive from GitHub, and the GitHub connector exposed no completed workflow/check run for the latest push. Therefore these changes are not yet promoted to PROVEN_IN_TEST. The first unproven gate is **execute repository CI / Phase 1A pytest against this branch and repair any failures**.
+
+Do not start Phase 1B or Phase 2 until Phase 1A passes its runtime proof matrix.
 
 This file describes the **GitHub repository snapshot**. It does not override the local Windows Workshop. Local remains the private authority; GitHub is code backup and deployment source; Cloudflare remains an optional non-authoritative field/public shell.
 
