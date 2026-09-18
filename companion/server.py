@@ -34,13 +34,13 @@ IMPORTS = DATA / "imports"
 BACKUPS = DATA / "backups"
 SOURCE_ARCHIVES = DATA / "source_archives"
 REGISTRY = ROOT / "artifact-registry"
-DB = DATA / "workshop.sqlite3"
+DB = Path(os.environ.get("TWIS_HOLO_DB", str(DATA / "workshop.sqlite3")))
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("TWIS_HOLO_PORT", "8787"))
 
 CAPABILITIES = {
     "name": "Twis Holo Local Companion",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "authoritative": True,
     "storage": ["local-project-folders", "sqlite", "fts5", "sha256", "artifact-registry-json", "local-source-archives"],
     "rooms": ["talk", "write", "music", "image", "video", "research", "code", "import", "modules"],
@@ -131,8 +131,36 @@ def connect() -> sqlite3.Connection:
           id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
           path TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL DEFAULT '{}',
           authority_state TEXT NOT NULL DEFAULT 'DRAFT', sha256 TEXT NOT NULL DEFAULT '',
-          created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          revision_number INTEGER NOT NULL DEFAULT 0,
+          current_revision_id TEXT NOT NULL DEFAULT '',
+          retired_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS artifact_revisions(
+          id TEXT PRIMARY KEY,
+          artifact_id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          revision_number INTEGER NOT NULL,
+          parent_revision_id TEXT,
+          snapshot_sha256 TEXT NOT NULL,
+          title TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          authority_state TEXT NOT NULL,
+          path TEXT NOT NULL DEFAULT '',
+          payload TEXT NOT NULL DEFAULT '{}',
+          snapshot_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          actor TEXT NOT NULL DEFAULT 'human-or-tool',
+          UNIQUE(artifact_id, revision_number)
+        );
+        CREATE TRIGGER IF NOT EXISTS artifact_revisions_no_update
+        BEFORE UPDATE ON artifact_revisions BEGIN
+          SELECT RAISE(ABORT, 'artifact revisions are immutable');
+        END;
+        CREATE TRIGGER IF NOT EXISTS artifact_revisions_no_delete
+        BEFORE DELETE ON artifact_revisions BEGIN
+          SELECT RAISE(ABORT, 'artifact revisions are immutable');
+        END;
         CREATE VIRTUAL TABLE IF NOT EXISTS artifact_search USING fts5(
           id UNINDEXED, project_id UNINDEXED, title, kind, content
         );
@@ -155,7 +183,17 @@ def connect() -> sqlite3.Connection:
         );
         """
     )
+    # Older databases need additive columns because CREATE TABLE IF NOT EXISTS
+    # does not alter an existing table.
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(artifacts)").fetchall()}
+    if "revision_number" not in cols:
+        con.execute("ALTER TABLE artifacts ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 0")
+    if "current_revision_id" not in cols:
+        con.execute("ALTER TABLE artifacts ADD COLUMN current_revision_id TEXT NOT NULL DEFAULT ''")
+    if "retired_at" not in cols:
+        con.execute("ALTER TABLE artifacts ADD COLUMN retired_at TEXT")
     con.commit()
+    backfill_artifact_revisions(con)
     return con
 
 
@@ -211,10 +249,75 @@ def sha256_file(path: Path) -> str:
 def index_artifact(con, a):
     content = f'{a["title"]} {a["kind"]} {json.dumps(a.get("payload", {}), ensure_ascii=False)}'
     con.execute("DELETE FROM artifact_search WHERE id=?", (a["id"],))
+    if not a.get("retiredAt"):
+        con.execute(
+            "INSERT INTO artifact_search(id,project_id,title,kind,content) VALUES(?,?,?,?,?)",
+            (a["id"], a["projectId"], a["title"], a["kind"], content),
+        )
+
+
+def normalized_artifact_snapshot(a: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "artifactId": a["id"],
+        "projectId": a["projectId"],
+        "title": a["title"],
+        "kind": a["kind"],
+        "path": a.get("path", ""),
+        "payload": a.get("payload", {}),
+        "authorityState": a.get("authorityState", "DRAFT"),
+        "retiredAt": a.get("retiredAt"),
+    }
+
+
+def snapshot_sha256(snapshot: dict[str, Any]) -> str:
+    raw = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def insert_revision(con, artifact: dict[str, Any], revision_number: int, parent_revision_id: str | None, actor: str) -> dict[str, Any]:
+    rid = str(uuid.uuid4())
+    snapshot = normalized_artifact_snapshot(artifact)
+    digest = snapshot_sha256(snapshot)
     con.execute(
-        "INSERT INTO artifact_search(id,project_id,title,kind,content) VALUES(?,?,?,?,?)",
-        (a["id"], a["projectId"], a["title"], a["kind"], content),
+        """INSERT INTO artifact_revisions(
+             id,artifact_id,project_id,revision_number,parent_revision_id,snapshot_sha256,
+             title,kind,authority_state,path,payload,snapshot_json,created_at,actor
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            rid, artifact["id"], artifact["projectId"], revision_number, parent_revision_id, digest,
+            artifact["title"], artifact["kind"], artifact.get("authorityState", "DRAFT"),
+            artifact.get("path", ""), json.dumps(artifact.get("payload", {}), ensure_ascii=False),
+            json.dumps(snapshot, ensure_ascii=False, sort_keys=True), utc(), actor,
+        ),
     )
+    return {"id": rid, "revisionNumber": revision_number, "snapshotSha256": digest}
+
+
+def backfill_artifact_revisions(con) -> None:
+    rows = con.execute("SELECT * FROM artifacts WHERE revision_number=0 OR current_revision_id=''").fetchall()
+    if not rows:
+        return
+    try:
+        con.execute("BEGIN")
+        for r in rows:
+            d = dict(r)
+            artifact = {
+                "id": d["id"], "projectId": d["project_id"], "kind": d["kind"], "title": d["title"],
+                "path": d["path"], "payload": json.loads(d["payload"]), "authorityState": d["authority_state"],
+                "retiredAt": d.get("retired_at"),
+            }
+            rev = insert_revision(con, artifact, 1, None, "migration")
+            con.execute(
+                "UPDATE artifacts SET revision_number=1,current_revision_id=? WHERE id=?",
+                (rev["id"], d["id"]),
+            )
+            add_receipt(con, d["project_id"], "artifact.revision.backfill", "system", {
+                "artifactId": d["id"], "revisionNumber": 1, "snapshotSha256": rev["snapshotSha256"]
+            })
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
 
 
 def add_receipt(con, project_id, action, actor, details):
@@ -246,23 +349,62 @@ def write_registry_snapshot() -> None:
     (REGISTRY / "receipts.json").write_text(json.dumps({"schemaVersion": "0.1", "exportedAt": now, "receipts": receipts}, indent=2), encoding="utf-8")
 
 
-def save_artifact_row(con, artifact: dict[str, Any]) -> None:
+def save_artifact_row(
+    con,
+    artifact: dict[str, Any],
+    expected_revision: int = 0,
+    actor: str = "human-or-tool",
+    action: str = "artifact.upsert",
+    inject_failure: bool = False,
+) -> dict[str, Any]:
+    existing = con.execute("SELECT * FROM artifacts WHERE id=?", (artifact["id"],)).fetchone()
+    if existing and existing["project_id"] != artifact["projectId"]:
+        raise ValueError("artifact id belongs to a different project")
+    if existing:
+        current_revision = int(existing["revision_number"])
+        if expected_revision != current_revision:
+            raise ValueError(f"stale artifact revision: expected {expected_revision}, current {current_revision}")
+        revision_number = current_revision + 1
+        parent_revision_id = existing["current_revision_id"] or None
+        created_at = existing["created_at"]
+    else:
+        if expected_revision != 0:
+            raise ValueError("new artifact expectedRevision must be 0")
+        revision_number = 1
+        parent_revision_id = None
+        created_at = artifact.get("createdAt", utc())
+
+    rev = insert_revision(con, artifact, revision_number, parent_revision_id, actor)
+    if inject_failure:
+        raise RuntimeError("injected artifact transaction failure")
+
     con.execute(
-        """INSERT INTO artifacts(id,project_id,kind,title,path,payload,authority_state,sha256,created_at,updated_at)
-           VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-           kind=excluded.kind,title=excluded.title,path=excluded.path,payload=excluded.payload,
-           authority_state=excluded.authority_state,sha256=excluded.sha256,updated_at=excluded.updated_at""",
+        """INSERT INTO artifacts(
+             id,project_id,kind,title,path,payload,authority_state,sha256,created_at,updated_at,
+             revision_number,current_revision_id,retired_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(id) DO UPDATE SET
+             kind=excluded.kind,title=excluded.title,path=excluded.path,payload=excluded.payload,
+             authority_state=excluded.authority_state,sha256=excluded.sha256,updated_at=excluded.updated_at,
+             revision_number=excluded.revision_number,current_revision_id=excluded.current_revision_id,
+             retired_at=excluded.retired_at""",
         (
             artifact["id"], artifact["projectId"], artifact["kind"], artifact["title"], artifact.get("path", ""),
             json.dumps(artifact.get("payload", {}), ensure_ascii=False), artifact.get("authorityState", "DRAFT"),
-            artifact.get("hash", ""), artifact.get("createdAt", utc()), artifact.get("updatedAt", utc()),
+            artifact.get("hash", ""), created_at, artifact.get("updatedAt", utc()),
+            revision_number, rev["id"], artifact.get("retiredAt"),
         ),
     )
     index_artifact(con, artifact)
+    add_receipt(con, artifact["projectId"], action, actor, {
+        "artifactId": artifact["id"], "revisionNumber": revision_number,
+        "revisionId": rev["id"], "snapshotSha256": rev["snapshotSha256"],
+    })
+    return {**rev, "createdAt": created_at}
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "TwisHoloCompanion/1.4"
+    server_version = "TwisHoloCompanion/1.5"
 
     def translate_path(self, path):
         clean = urllib.parse.urlparse(path).path
@@ -296,18 +438,41 @@ class Handler(SimpleHTTPRequestHandler):
                     try:
                         fts = safe_fts_query(search)
                         rows = con.execute("""SELECT a.* FROM artifacts a JOIN artifact_search s ON s.id=a.id
-                                            WHERE a.project_id=? AND artifact_search MATCH ?
+                                            WHERE a.project_id=? AND a.retired_at IS NULL AND artifact_search MATCH ?
                                             ORDER BY a.updated_at DESC""", (pid, fts)).fetchall() if fts else []
                     except sqlite3.Error:
                         like = f"%{search}%"
-                        rows = con.execute("SELECT * FROM artifacts WHERE project_id=? AND (title LIKE ? OR kind LIKE ? OR payload LIKE ?) ORDER BY updated_at DESC", (pid, like, like, like)).fetchall()
+                        rows = con.execute("SELECT * FROM artifacts WHERE project_id=? AND retired_at IS NULL AND (title LIKE ? OR kind LIKE ? OR payload LIKE ?) ORDER BY updated_at DESC", (pid, like, like, like)).fetchall()
                 else:
-                    rows = con.execute("SELECT * FROM artifacts WHERE project_id=? ORDER BY updated_at DESC", (pid,)).fetchall()
+                    rows = con.execute("SELECT * FROM artifacts WHERE project_id=? AND retired_at IS NULL ORDER BY updated_at DESC", (pid,)).fetchall()
                 con.close()
                 out = []
                 for r in rows:
                     d = dict(r); d["payload"] = json.loads(d["payload"]); out.append(d)
                 json_response(self, 200, out); return
+            if u.path.startswith("/api/projects/") and u.path.endswith("/history"):
+                parts = u.path.strip("/").split("/")
+                if len(parts) == 7 and parts[0] == "api" and parts[1] == "projects" and parts[3] == "artifacts":
+                    pid = safe_id(parts[2]); aid = parts[4]
+                    con = connect()
+                    owner = con.execute("SELECT project_id FROM artifacts WHERE id=?", (aid,)).fetchone()
+                    if not owner:
+                        con.close(); json_response(self, 404, {"error": "artifact not found"}); return
+                    if owner["project_id"] != pid:
+                        con.close(); json_response(self, 400, {"error": "artifact does not belong to project"}); return
+                    revisions = [dict(r) for r in con.execute(
+                        "SELECT * FROM artifact_revisions WHERE artifact_id=? AND project_id=? ORDER BY revision_number DESC",
+                        (aid, pid),
+                    ).fetchall()]
+                    receipts = [dict(r) for r in con.execute(
+                        "SELECT * FROM receipts WHERE project_id=? AND details LIKE ? ORDER BY created_at DESC",
+                        (pid, f'%"artifactId": "{aid}"%'),
+                    ).fetchall()]
+                    con.close()
+                    for rev in revisions:
+                        rev["payload"] = json.loads(rev["payload"])
+                        rev["snapshot"] = json.loads(rev["snapshot_json"])
+                    json_response(self, 200, {"artifactId": aid, "projectId": pid, "revisions": revisions, "receipts": receipts}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions/latest"):
                 pid = safe_id(u.path.split("/")[3]); con = connect()
                 r = con.execute("SELECT * FROM sessions WHERE project_id=? ORDER BY created_at DESC LIMIT 1", (pid,)).fetchone(); con.close()
@@ -366,8 +531,32 @@ class Handler(SimpleHTTPRequestHandler):
                     p = resolve_project_relative(pid, rel)
                     if p.exists() and p.is_file():
                         sha = sha256_file(p)
-                a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": x.get("authorityState", "DRAFT"), "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now}
-                con = connect(); save_artifact_row(con, a); add_receipt(con, pid, "artifact.upsert", "human-or-tool", a); con.commit(); con.close()
+                requested_authority = x.get("authorityState", "DRAFT")
+                con = connect()
+                existing = con.execute("SELECT project_id,authority_state,revision_number FROM artifacts WHERE id=?", (aid,)).fetchone()
+                if existing and existing["project_id"] != pid:
+                    con.close(); json_response(self, 400, {"error": "artifact id belongs to a different project"}); return
+                protected_states = {"SOURCE", "PERMANENT_SOURCE", "CANON"}
+                if existing and existing["authority_state"] in protected_states:
+                    con.close(); json_response(self, 409, {"error": "protected source/canon cannot be changed through the generic artifact route"}); return
+                if requested_authority == "CANON":
+                    con.close(); json_response(self, 409, {"error": "Canon promotion requires a governed review route"}); return
+                if "expectedRevision" not in x:
+                    con.close(); json_response(self, 428, {"error": "expectedRevision is required"}); return
+                a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": requested_authority, "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now, "retiredAt": None}
+                try:
+                    con.execute("BEGIN")
+                    rev = save_artifact_row(
+                        con, a, int(x.get("expectedRevision", 0)), "human-or-tool", "artifact.upsert",
+                        bool(x.get("_testInjectFailure")) and os.environ.get("TWIS_HOLO_TEST_INJECT_FAILURE") == "1",
+                    )
+                    con.commit()
+                except ValueError as e:
+                    con.rollback(); con.close(); json_response(self, 409, {"error": str(e)}); return
+                except Exception:
+                    con.rollback(); con.close(); raise
+                con.close()
+                a["revisionNumber"] = rev["revisionNumber"]; a["currentRevisionId"] = rev["id"]; a["snapshotSha256"] = rev["snapshotSha256"]
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "artifact": a}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions"):
@@ -453,7 +642,7 @@ class Handler(SimpleHTTPRequestHandler):
                         sha = sha256_file(target)
                         payload = {"size": target.stat().st_size, "sourcePath": str(f), "importedPath": rel}
                         artifact = {"id": aid, "projectId": pid, "kind": kind, "title": target.name, "path": rel, "payload": payload, "authorityState": "SOURCE", "hash": sha, "createdAt": now, "updatedAt": now}
-                        save_artifact_row(con, artifact)
+                        save_artifact_row(con, artifact, 0, "importer", "artifact.import")
                         count += 1
                 add_receipt(con, pid, "folder.import", "human", {"source": str(source), "count": count, "skipped": skipped[:500]}); con.commit(); con.close()
                 write_registry_snapshot()
@@ -471,6 +660,7 @@ class Handler(SimpleHTTPRequestHandler):
                     snapshot = {
                         "project": [dict(r) for r in con.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchall()],
                         "artifacts": [dict(r) for r in con.execute("SELECT * FROM artifacts WHERE project_id=?", (pid,)).fetchall()],
+                        "artifactRevisions": [dict(r) for r in con.execute("SELECT * FROM artifact_revisions WHERE project_id=? ORDER BY artifact_id,revision_number", (pid,)).fetchall()],
                         "sessions": [dict(r) for r in con.execute("SELECT * FROM sessions WHERE project_id=?", (pid,)).fetchall()],
                         "receipts": [dict(r) for r in con.execute("SELECT * FROM receipts WHERE project_id=?", (pid,)).fetchall()],
                     }; con.close()
@@ -521,13 +711,33 @@ class Handler(SimpleHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         try:
             if u.path.startswith("/api/artifacts/"):
-                aid = u.path.rsplit("/", 1)[-1]; con = connect()
-                r = con.execute("SELECT project_id FROM artifacts WHERE id=?", (aid,)).fetchone()
-                if r:
-                    add_receipt(con, r["project_id"], "artifact.delete", "human", {"id": aid})
-                con.execute("DELETE FROM artifacts WHERE id=?", (aid,)); con.execute("DELETE FROM artifact_search WHERE id=?", (aid,)); con.commit(); con.close()
+                aid = u.path.rsplit("/", 1)[-1]
+                q = urllib.parse.parse_qs(u.query)
+                raw_expected = (q.get("expectedRevision") or [None])[0]
+                if raw_expected is None:
+                    json_response(self, 428, {"error": "expectedRevision is required"}); return
+                con = connect()
+                r = con.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
+                if not r:
+                    con.close(); json_response(self, 404, {"error": "artifact not found"}); return
+                if r["authority_state"] in {"SOURCE", "PERMANENT_SOURCE", "CANON"}:
+                    con.close(); json_response(self, 409, {"error": "protected source/canon cannot be retired through the generic route"}); return
+                artifact = {
+                    "id": r["id"], "projectId": r["project_id"], "kind": r["kind"], "title": r["title"],
+                    "path": r["path"], "payload": json.loads(r["payload"]), "authorityState": "RETIRED",
+                    "hash": r["sha256"], "createdAt": r["created_at"], "updatedAt": utc(), "retiredAt": utc(),
+                }
+                try:
+                    con.execute("BEGIN")
+                    rev = save_artifact_row(con, artifact, int(raw_expected), "human", "artifact.retire")
+                    con.commit()
+                except ValueError as e:
+                    con.rollback(); con.close(); json_response(self, 409, {"error": str(e)}); return
+                except Exception:
+                    con.rollback(); con.close(); raise
+                con.close()
                 write_registry_snapshot()
-                json_response(self, 200, {"ok": True}); return
+                json_response(self, 200, {"ok": True, "revisionNumber": rev["revisionNumber"], "retired": True}); return
             json_response(self, 404, {"error": "not found"})
         except Exception as e:
             json_response(self, 500, {"error": str(e)})
