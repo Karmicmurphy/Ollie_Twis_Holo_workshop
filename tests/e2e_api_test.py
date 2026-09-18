@@ -36,7 +36,7 @@ def main():
         project = {"id":"e2e-test","title":"E2E Test","description":"runtime test","nextAction":"verify API"}
         created = request("/api/projects", "POST", project)
         assert created["ok"] is True
-        artifact = {"kind":"document","title":"Smoke Document","payload":{"body":"Still. Fucking. Here."},"authorityState":"DRAFT"}
+        artifact = {"kind":"document","title":"Smoke Document","payload":{"body":"Still. Fucking. Here."},"authorityState":"DRAFT","expectedRevision":0}
         saved = request("/api/projects/e2e-test/artifacts", "POST", artifact)
         assert saved["ok"] is True
         artifacts = request("/api/projects/e2e-test/artifacts")
