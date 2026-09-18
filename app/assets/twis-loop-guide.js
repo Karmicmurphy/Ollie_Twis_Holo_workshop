@@ -17,6 +17,6 @@ function build(){const host=q('#twisLoopDeck');if(!host||q('[data-page="guide"]'
 </div>
 <details class="ld-guide-more"><summary>WHAT DOES ALL THIS SHIT DO?</summary><p><b>LOOP:</b> record yourself, guitar, voice, or room noise and make it repeat.</p><p><b>PADS:</b> 16 playable buttons.</p><p><b>SEQ:</b> 16-step repeating grid.</p><p><b>SOUND:</b> change each pad sound or load a TWIS pack.</p><p><b>IMPORT:</b> bring in your own audio and cut it into pieces.</p><p><b>MIX:</b> volume, filter, effects, and finished capture.</p><p><b>FORGE:</b> GHOST catches recent playing, SCRAP finds useful pieces, BREED mutates rhythm, FOLLOW ME follows your pulse, MORPH blends states, and the small FORGE FUCK IT mutates one thing.</p></details>
 </div></div>`;const status=q('#ldStatus');body.insertBefore(page,status||null);page.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));return true}
-function install(){if(installed)return;try{if(!build()){setTimeout(install,120);return}installed=true;setTimeout(()=>go('guide'),40)}catch(e){console.error('TWIS guide install failed',e);setTimeout(install,250)}}
+function install(){if(installed)return;try{if(!build()){setTimeout(install,120);return}installed=true}catch(e){console.error('TWIS guide install failed',e);setTimeout(install,250)}}
 window.TWIS_LOOP_GUIDE={install};
 })();
