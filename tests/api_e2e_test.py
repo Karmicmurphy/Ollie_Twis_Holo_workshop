@@ -77,7 +77,7 @@ def test_local_companion_api_end_to_end():
         artifact = request(
             "/api/projects/ci-runtime-test/artifacts",
             "POST",
-            {"kind": "document", "title": "CI Artifact", "payload": {"body": "Still here."}},
+            {"kind": "document", "title": "CI Artifact", "payload": {"body": "Still here."}, "expectedRevision": 0},
         )
         assert artifact["ok"] is True
 
