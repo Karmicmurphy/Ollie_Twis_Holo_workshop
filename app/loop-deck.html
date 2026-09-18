@@ -24,7 +24,8 @@
 <script src="assets/twis-loop-guide.js?v=20260917-simple1"></script>
 <script src="assets/twis-loop-colors.js?v=20260917-simple1"></script>
 <script src="assets/twis-loop-fuckit.js?v=20260917-simple1"></script>
-<script src="assets/twis-loop-performance.js?v=20260917-simple1"></script>\n<script src="assets/twis-simple-perform.js?v=20260917-simple1"></script>
+<script src="assets/twis-loop-performance.js?v=20260917-simple1"></script>
+<script src="assets/twis-simple-perform.js?v=20260917-simple1"></script>
 <script>
 window.addEventListener('DOMContentLoaded',()=>{
   const safeInstall=(name,obj)=>{try{obj?.install?.()}catch(e){console.error(`TWIS ${name} install failed`,e)}};
@@ -40,7 +41,8 @@ window.addEventListener('DOMContentLoaded',()=>{
       safeInstall('guide',window.TWIS_LOOP_GUIDE);
       safeInstall('colors',window.TWIS_LOOP_COLORS);
       safeInstall('big fuck it',window.TWIS_LOOP_FUCK_IT);
-      safeInstall('performance',window.TWIS_LOOP_PERFORMANCE);\n      safeInstall('simple perform',window.TWIS_SIMPLE_PERFORM);
+      safeInstall('performance',window.TWIS_LOOP_PERFORMANCE);
+      safeInstall('simple perform',window.TWIS_SIMPLE_PERFORM);
     },80);
   };
   document.getElementById('bootBtn').onclick=go;
