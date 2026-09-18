@@ -12,7 +12,7 @@ def test_loop_deck_entry_wires_v2_modules():
     assert "assets/twis-loop-deck-v2.js" in html
     assert "assets/twis-loop-deck-modules.js" in html
     assert "TWIS_LOOP_MODULES" in html
-    assert "sw.js" in html
+    assert "service-worker.js" in html\n    assert "assets/twis-simple-perform.js" in html\n    assert "TWIS_SIMPLE_PERFORM" in html
     assert 'href="loop-deck.webmanifest"' in html
 
 
@@ -58,7 +58,7 @@ def test_loop_deck_service_workers_share_cache_contract():
         "./loop-deck.html",
         "./loop-deck.webmanifest",
         "./assets/twis-loop-deck-v2.js",
-        "./assets/twis-loop-deck-modules.js",
+        "./assets/twis-loop-deck-modules.js",\n        "./assets/twis-simple-perform.js",
         "./assets/loop-recorder-worklet.js",
         "./assets/icons/twis-loop-deck-icon.svg",
         "./assets/icons/twis-loop-deck-icon-192.png",
@@ -78,3 +78,4 @@ def test_loop_deck_javascript_parses_when_node_is_available():
         "app/assets/loop-recorder-worklet.js",
     ):
         subprocess.run([node, "--check", str(ROOT / rel)], check=True, capture_output=True, text=True)
+\n\ndef test_simple_perform_contract_present():\n    simple = (APP / "assets" / "twis-simple-perform.js").read_text(encoding="utf-8")\n    sound = (APP / "assets" / "twis-loop-sound-rack.js").read_text(encoding="utf-8")\n    forge = (APP / "assets" / "twis-loop-forge.js").read_text(encoding="utf-8")\n    for label in ("KICK", "BASS", "HATS", "PERC", "PAD", "MELODY", "FX", "VOCAL"):\n        assert label in simple\n    assert "DEEP MELODIC HOUSE" in simple\n    assert "GHOST — CATCH THAT" in simple\n    assert "FUCK IT" in simple\n    assert "SAVE / LOAD" in simple\n    assert "navigator.storage?.getDirectory" in simple\n    assert "loadPresetToPad" in sound and "loadFileToPad" in sound\n    assert "ghostCatch:ghost" in forge and "undoLast" in forge\n
