@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07090b">
+<title>TWIS PRO RIG</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#07090b;color:#edf3f5;font-family:system-ui,sans-serif;min-height:100%}
+body{padding:12px}.rig{max-width:760px;margin:auto;display:grid;gap:10px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.brand{font-size:11px;letter-spacing:.22em;color:#8ea0a8}.title{font-size:30px;font-weight:1000;line-height:1}.sub{font-size:11px;color:#81949b}
+button,select,input{font:inherit}.transport{display:grid;grid-template-columns:1.2fr .8fr .8fr .8fr;gap:7px}
+button,select{min-height:44px;border-radius:10px;border:1px solid #334047;background:#10161a;color:#fff;font-weight:800}
+#play{background:#17392e;border-color:#38cc8d}.meter{font-size:11px;padding:8px;border:1px solid #26343b;border-radius:10px;background:#0b1114;text-align:center}
+.decks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.deck{border:1px solid #29383f;background:#0b1114;border-radius:14px;padding:9px;display:grid;gap:7px}
+.deck h3{margin:0;font-size:12px;letter-spacing:.14em}.deckrow{display:grid;grid-template-columns:1fr 1fr;gap:6px}.deck button.on{border-color:#6f8dff;background:#15204a}
+.stems{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.stem{min-height:62px}.stem.on{background:#172750;border-color:#7895ff;box-shadow:0 0 14px #506dff44}.stem small{display:block;color:#8ea0a8;font-size:9px;margin-top:3px}
+.sceneRow{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.sceneRow button.on{background:#3a1f52;border-color:#b276ff}
+.macros{border:1px solid #29383f;background:#0b1114;border-radius:14px;padding:10px;display:grid;gap:10px}.macro{display:grid;grid-template-columns:78px 1fr 45px;gap:8px;align-items:center;font-size:11px}.macro input{width:100%}
+.mixer{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.chan{border:1px solid #29383f;border-radius:10px;padding:6px;background:#0b1114;text-align:center;font-size:9px}.chan input{width:100%;writing-mode:bt-lr;appearance:slider-vertical;height:90px}.credits{font-size:9px;color:#65777e;line-height:1.4}.status{font-size:11px;color:#94a8af;min-height:18px;text-align:center}
+@media(max-width:430px){body{padding:8px}.title{font-size:26px}.transport{grid-template-columns:1fr 1fr}.decks{grid-template-columns:1fr 1fr}.stems{grid-template-columns:repeat(4,1fr)}.mixer{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body>
+<div class="rig">
+  <div class="top"><div><div class="brand">TWIS LOOP DECK · PRO RIG</div><div class="title">HYBRID LIVE DESK</div><div class="sub">4 decks · stems · scenes · synths · vocals · FX</div></div><div class="meter" id="clock">STOPPED</div></div>
+  <div class="transport">
+    <button id="play">▶ PLAY</button>
+    <select id="bpm"><option>118</option><option>120</option><option selected>124</option><option>126</option><option>128</option></select>
+    <select id="key"><option>C</option><option>C#</option><option selected>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
+    <select id="scale"><option selected>MINOR</option><option>DORIAN</option><option>PHRYGIAN</option></select>
+  </div>
+
+  <div class="decks">
+    <div class="deck"><h3>DECK A · GROOVE</h3><div class="deckrow"><button data-deck="A" data-act="loop">LOOP 8</button><button data-deck="A" data-act="filter">FILTER</button></div></div>
+    <div class="deck"><h3>DECK B · MELODY</h3><div class="deckrow"><button data-deck="B" data-act="loop">LOOP 16</button><button data-deck="B" data-act="filter">FILTER</button></div></div>
+    <div class="deck"><h3>DECK C · VOCAL</h3><div class="deckrow"><button data-deck="C" data-act="loop">LOOP 8</button><button data-deck="C" data-act="filter">FILTER</button></div></div>
+    <div class="deck"><h3>DECK D · ATMOS</h3><div class="deckrow"><button data-deck="D" data-act="loop">LOOP 16</button><button data-deck="D" data-act="filter">FILTER</button></div></div>
+  </div>
+
+  <div class="stems" id="stems"></div>
+
+  <div class="sceneRow">
+    <button class="scene on" data-scene="0">A · DEEP</button>
+    <button class="scene" data-scene="1">B · DRIVE</button>
+    <button class="scene" data-scene="2">C · BREAK</button>
+    <button class="scene" data-scene="3">D · PEAK</button>
+    <button id="mutate">FUCK IT</button>
+  </div>
+
+  <div class="macros">
+    <div class="macro"><span>ENERGY</span><input id="energy" type="range" min="0" max="1" step=".01" value=".45"><b id="energyV">45</b></div>
+    <div class="macro"><span>SPACE</span><input id="space" type="range" min="0" max="1" step=".01" value=".55"><b id="spaceV">55</b></div>
+    <div class="macro"><span>DELAY</span><input id="delay" type="range" min="0" max="1" step=".01" value=".28"><b id="delayV">28</b></div>
+    <div class="macro"><span>FILTER</span><input id="filter" type="range" min="0" max="1" step=".01" value=".82"><b id="filterV">82</b></div>
+  </div>
+
+  <div class="mixer" id="mixer"></div>
+  <div class="status" id="status">Tap PLAY. Then bring stems in and out like a live set.</div>
+  <div class="credits">Prototype mechanisms: Tone.js (MIT), Modal-16 musical sequencing concepts (MIT), CC0 drum samples from free-drum-samples, CC0 voice sample from pdx-cs-sound. Professional workflow inspiration: CDJ/DJM multi-deck mixing + Ableton-style stems/scenes + live synth/sample control. No proprietary artist presets or copyrighted tracks are included.</div>
+</div>
+<script src="assets/twis-pro-rig.js?v=1"></script>
+</body></html>
