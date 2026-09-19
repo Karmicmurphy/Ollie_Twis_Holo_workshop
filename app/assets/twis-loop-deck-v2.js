@@ -74,8 +74,8 @@ async function initRecorderWorklet(){
     state.recorderNode.port.onmessage=handleRecorderMessage;
   }catch(e){console.warn(e);status('AudioWorklet recorder unavailable; browser recording fallback only.');}
 }
-function stepSec(){clock().setBpm(state.bpm,state.ctx?.currentTime);return clock().stepSeconds();}
-function barSec(bars=1){clock().setBpm(state.bpm,state.ctx?.currentTime);return clock().barSeconds(bars);}
+function stepSec(){return clock().stepSeconds();}
+function barSec(bars=1){return clock().barSeconds(bars);}
 function transportPos(t=audio().currentTime){return clock().transportSeconds(t);}
 function nextGrid(kind='bar',now=audio().currentTime){return clock().nextBoundary(kind,now);}
 function queueBarAction(fn){if(typeof fn==='function')state.barActions.push(fn);}
