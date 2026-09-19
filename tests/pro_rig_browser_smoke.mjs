@@ -145,6 +145,7 @@ async function runCase(label, contextOptions, opts={}){
 
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForSelector('#play');
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot,null,{timeout:12000});
   const reloaded=await page.evaluate(() => window.__TWIS_PRO_RIG__?.snapshot());
   if(!reloaded || reloaded.running || reloaded.contextState!=='not-started' || await page.locator('#clock').innerText()!=='SILENT'){
     throw new Error(label+': reload did not return clean state '+JSON.stringify(reloaded));
@@ -215,6 +216,7 @@ async function runOfflineWarmCase(){
   await context.setOffline(true);
   await page.reload({waitUntil:'domcontentloaded',timeout:12000});
   await page.waitForSelector('#play',{timeout:5000});
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot,null,{timeout:12000});
   if(await page.locator('#clock').innerText()!=='SILENT') throw new Error('offline warm reload not silent');
   await page.click('#play');
   await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot().running===true,null,{timeout:12000});
