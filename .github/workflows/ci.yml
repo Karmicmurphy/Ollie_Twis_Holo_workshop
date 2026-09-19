@@ -25,8 +25,14 @@ jobs:
       - name: JavaScript syntax
         run: |
           node --check app/assets/app.js
+          node --check app/assets/twis-pro-rig-v4.js
           node --check cloudflare/worker/src/index.js
           test ! -f functions/api/ai/chat.js || node --check functions/api/ai/chat.js
+      - name: Pro Rig remote sample reachability
+        run: |
+          curl -fsSL --range 0-1023 https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/kicks/bounce-kick-01.wav -o /dev/null
+          curl -fsSL --range 0-1023 https://cdn.jsdelivr.net/gh/n33kos/kokoro-voices@main/samples/am_ash.wav -o /dev/null
+          curl -fsSL --range 0-1023 https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js -o /dev/null
       - name: Smoke test
         run: python tests/smoke_test.py
       - name: Python contract tests
