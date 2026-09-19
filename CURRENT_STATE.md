@@ -1,6 +1,35 @@
 # Twis Holo Workshop — Current Repository State
 
-Updated: 2026-09-18
+Updated: 2026-09-19
+
+## Isolated Hollow Workshop build branch
+
+Evidence branch: `hollow-workshop-audit-reconcile`
+
+Protected Workshop branch: `living-workshop-main-build`
+
+Local Windows Workshop remains the newer authority wherever verified. This isolated branch exists to continue building and proving mechanisms without overwriting or redefining the protected Workshop.
+
+### Phase 1A — artifact revision preservation
+
+Evidence state: **PROVEN_IN_TEST**
+
+Workshop CI passed on the isolated branch. Immutable revisions, optimistic concurrency, atomic projection + revision + receipt behavior, protected-source mutation blocks, retirement history, history UI/API, capsule recovery, SQL immutability, and rollback proof are all covered by the stored test matrix.
+
+### Phase 1B — Human Signal authority/review spine
+
+Evidence state: **PROVEN_IN_TEST**
+
+The isolated branch now separates review state from artifact authority, adds an immutable human review ledger, requires governed review transitions before Canon promotion, rejects stale review decisions, keeps SOURCE/PERMANENT_SOURCE distinct from Canon, exposes review controls in My Work, includes review history in capsules, and has a dedicated Phase 1B proof test.
+
+See `docs/HOLLOW_WORKSHOP_BUILD_STATE_2026-09-19.md` for the exact branch boundary, feature contract, proof, and stop condition.
+
+### Current stop condition
+
+Do not merge this branch into the protected Workshop and do not begin relationship/territory work until the newer local Windows Workshop has been reconciled file-by-file/mechanism-by-mechanism against this branch.
+
+---
+
 
 ## Living Workshop Main Build — Phase 1A candidate
 
