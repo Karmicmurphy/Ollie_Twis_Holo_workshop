@@ -3,98 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#05070a">
-<title>TWIS Pro Rig V4</title>
-<script>
-window.__TWIS_TONE_READY__=new Promise((resolve,reject)=>{
-  const sources=[
-    'https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js',
-    'https://unpkg.com/tone@14.8.49/build/Tone.js'
-  ];
-  const load=i=>{
-    if(i>=sources.length){reject(new Error('Tone.js unavailable from all configured sources'));return;}
-    const s=document.createElement('script');
-    s.src=sources[i];s.async=false;
-    s.onload=()=>resolve(window.Tone);
-    s.onerror=()=>{s.remove();load(i+1);};
-    document.head.appendChild(s);
-  };
-  load(0);
-});
-</script>
-<style>
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#05070a;color:#eef5f7;font-family:system-ui,sans-serif}
-body{padding:10px}.rig{max-width:920px;margin:auto;display:grid;gap:10px}.top{display:flex;justify-content:space-between;gap:10px}
-.brand{font-size:10px;letter-spacing:.22em;color:#7f9198}.title{font-size:27px;font-weight:1000;line-height:1}.sub,.diag{font-size:10px;color:#81939a}
-button,select,input{font:inherit}button,select{min-height:48px;border-radius:12px;border:1px solid #2c3a40;background:#10161a;color:#fff;font-weight:900}
-button.on{background:#18315a;border-color:#7f9cff;box-shadow:0 0 14px #496cff44}button.warn{background:#4b3113;border-color:#d7a04f}
-#play{background:#163c2f;border-color:#45d59a}.clock{padding:8px;border:1px solid #27343a;border-radius:10px;background:#0b1114;font-size:11px;text-align:center;min-width:110px}
-.transport{display:grid;grid-template-columns:1.3fr .7fr .7fr .7fr .9fr;gap:7px}
-.sceneRow{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.sceneRow button{font-size:10px;padding:6px}.sceneRow button.on{background:#3a1c50;border-color:#bd7dff}
-.stems{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.stem{min-height:66px;font-size:12px}.stem small{display:block;font-size:9px;color:#8b9ba1;margin-top:3px}
-.fxrow{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.fx{min-height:58px}.fx.on{background:#513219;border-color:#ffbd6b}
-.macros{border:1px solid #26343a;background:#0b1114;border-radius:14px;padding:10px;display:grid;gap:9px}.macro{display:grid;grid-template-columns:72px 1fr 40px;gap:8px;align-items:center;font-size:11px}.macro input{width:100%}
-.mixer{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.chan{border:1px solid #26343a;background:#0b1114;border-radius:10px;padding:6px;text-align:center;font-size:9px}.chan input{width:100%}
-.status{font-size:11px;color:#a2b1b6;text-align:center;min-height:18px}.footer{display:flex;gap:7px}.footer button{flex:1}.note{font-size:9px;color:#617278;line-height:1.35}
-@media(max-width:520px){body{padding:8px}.title{font-size:24px}.transport{grid-template-columns:1fr 1fr}.sceneRow{grid-template-columns:repeat(3,1fr)}.stems{grid-template-columns:repeat(4,1fr)}.fxrow{grid-template-columns:repeat(2,1fr)}.mixer{grid-template-columns:repeat(3,1fr)}}
-</style>
+<meta name="theme-color" content="#07090b">
+<title>TWIS Pro Rig</title>
+<meta http-equiv="refresh" content="0;url=./loop-deck.html?mode=pro">
+<style>html,body{margin:0;min-height:100%;background:#07090b;color:#eef5f7;font-family:system-ui,sans-serif;display:grid;place-items:center}a{color:#63ddb0;font-weight:900}</style>
+<script>location.replace('./loop-deck.html?mode=pro');</script>
 </head>
-<body>
-<div class="rig">
-  <div class="top">
-    <div><div class="brand">TWIS · PRO RIG V4 · FINISH</div><div class="title">AMPHITHEATER LIVE DESK</div><div class="sub">same rig on phone + PC · real samples + phrase engine + live FX</div><div class="diag" id="diag">AUDIO: NOT STARTED · PACK: NOT LOADED</div></div>
-    <div class="clock" id="clock">SILENT</div>
-  </div>
-
-  <div class="transport">
-    <button id="play">▶ PLAY SET</button>
-    <select id="bpm"><option>120</option><option>122</option><option selected>124</option><option>126</option><option>128</option></select>
-    <select id="key"><option>C</option><option>C#</option><option selected>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
-    <select id="scale"><option selected>MINOR</option><option>DORIAN</option><option>PHRYGIAN</option></select>
-    <button id="variation">FUCK IT</button>
-  </div>
-
-  <div class="sceneRow">
-    <button class="scene" data-scene="INTRO">INTRO</button>
-    <button class="scene on" data-scene="DEEP">DEEP</button>
-    <button class="scene" data-scene="LIFT">LIFT</button>
-    <button class="scene" data-scene="BREAK">BREAK</button>
-    <button class="scene" data-scene="PEAK">PEAK</button>
-    <button class="scene" data-scene="OUTRO">OUTRO</button>
-  </div>
-
-  <div class="stems" id="stems"></div>
-
-  <div class="fxrow">
-    <button class="fx" id="build">BUILD 4</button>
-    <button class="fx" id="drop">DROP</button>
-    <button class="fx" id="echo">ECHO</button>
-    <button class="fx" id="wash">WASH</button>
-    <button class="fx" id="vocalHit">VOCAL HIT</button>
-  </div>
-
-  <div class="macros">
-    <div class="macro"><span>ENERGY</span><input id="energy" type="range" min="0" max="1" step=".01" value=".48"><b id="energyV">48</b></div>
-    <div class="macro"><span>SPACE</span><input id="space" type="range" min="0" max="1" step=".01" value=".48"><b id="spaceV">48</b></div>
-    <div class="macro"><span>FILTER</span><input id="filter" type="range" min="0" max="1" step=".01" value=".92"><b id="filterV">92</b></div>
-    <div class="macro"><span>TENSION</span><input id="tension" type="range" min="0" max="1" step=".01" value=".28"><b id="tensionV">28</b></div>
-  </div>
-
-  <div class="mixer" id="mixer"></div>
-  <div class="status" id="status">Silent on entry. Tap PLAY SET. First start loads the rights-clean performance pack.</div>
-  <div class="footer"><button id="loops">LOOPS / IMPORT</button><button id="reset">RESET SET</button></div>
-  <div class="note">V4 uses CC0 drum one-shots and a CC0 synthetic voice preview when the network is available, with local synth fallbacks if a sample cannot load. Core audio still runs in the browser and requires no paid API.</div>
-</div>
-<script>
-window.__TWIS_TONE_READY__.then(()=>{
-  const s=document.createElement('script');
-  s.src='assets/twis-pro-rig-v4.js?v=4-finish';
-  s.onerror=()=>{document.getElementById('status').textContent='Audio engine failed to load.';};
-  document.body.appendChild(s);
-}).catch(e=>{
-  document.getElementById('status').textContent='Audio runtime unavailable: '+e.message;
-  document.getElementById('diag').textContent='AUDIO: ERROR · PACK: UNAVAILABLE';
-});
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js?v=20260919-finish",{updateViaCache:"none"}).catch(()=>{}));}
-</script>
-</body></html>
+<body><a href="./loop-deck.html?mode=pro">OPEN TWIS PRO RIG</a></body>
+</html>

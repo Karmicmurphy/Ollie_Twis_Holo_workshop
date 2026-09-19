@@ -9,6 +9,7 @@ APP = ROOT / "app"
 
 def test_loop_deck_entry_wires_v2_modules():
     html = (APP / "loop-deck.html").read_text(encoding="utf-8")
+    assert "assets/twis-loop-core.js" in html
     assert "assets/twis-loop-deck-v2.js" in html
     assert "assets/twis-loop-deck-modules.js" in html
     assert "TWIS_LOOP_MODULES" in html
@@ -34,11 +35,14 @@ def test_loop_deck_has_dedicated_phone_install_contract():
 
 
 def test_loop_deck_core_contracts_present():
+    shared = (APP / "assets" / "twis-loop-core.js").read_text(encoding="utf-8")
     core = (APP / "assets" / "twis-loop-deck-v2.js").read_text(encoding="utf-8")
     worklet = (APP / "assets" / "loop-recorder-worklet.js").read_text(encoding="utf-8")
     modules = (APP / "assets" / "twis-loop-deck-modules.js").read_text(encoding="utf-8")
     calibration = (APP / "assets" / "twis-loop-calibration.js").read_text(encoding="utf-8")
 
+    assert "TransportClock" in shared and "LoopStateMachine" in shared
+    assert "TWIS_LOOP_CORE" in core
     assert "AudioWorkletNode" in core
     assert "navigator.storage?.getDirectory" in core
     assert "requestMIDIAccess" in core
@@ -59,6 +63,7 @@ def test_loop_deck_service_workers_share_cache_contract():
     for asset in (
         "./loop-deck.html",
         "./loop-deck.webmanifest",
+        "./assets/twis-loop-core.js",
         "./assets/twis-loop-deck-v2.js",
         "./assets/twis-loop-deck-modules.js",
         "./assets/twis-simple-perform.js",
@@ -75,6 +80,7 @@ def test_loop_deck_javascript_parses_when_node_is_available():
     if not node:
         return
     for rel in (
+        "app/assets/twis-loop-core.js",
         "app/assets/twis-loop-deck-v2.js",
         "app/assets/twis-loop-deck-modules.js",
         "app/assets/twis-loop-calibration.js",
@@ -93,6 +99,9 @@ def test_simple_perform_contract_present():
     for label in ("KICK", "BASS", "HATS", "PERC", "PAD", "MELODY", "FX", "VOCAL"):
         assert label in simple
     assert "DEEP MELODIC HOUSE" in simple
+    assert "PLAY SET" in simple
+    assert "performanceScenes" in simple
+    assert "queueBarAction" in simple
     assert "GHOST — CATCH THAT" in simple
     assert "FUCK IT" in simple
     assert "SAVE / LOAD" in simple
