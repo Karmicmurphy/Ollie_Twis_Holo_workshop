@@ -3,7 +3,7 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let installed=false, active=Array(8).fill(false), energy=.52, packName='DEEP MELODIC HOUSE', lastGhostLoop=-1;
 const proMode=new URLSearchParams(location.search).get('mode')==='pro';
-let currentScene='DEEP',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false;
+let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0;
 const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
 const packs={
  'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,24]},
@@ -13,12 +13,12 @@ const packs={
  'INDUSTRIAL BLUES':{bpm:88,key:'D MIN',presets:[0,9,4,7,13,15,23,24]}
 };
 const performanceScenes={
-  INTRO:{active:[0,0,0,0,1,0,1,1],energy:.24},
+  INTRO:{active:[1,1,0,0,1,0,0,0],energy:.30},
   DEEP:{active:[1,1,0,1,1,1,0,0],energy:.50},
-  LIFT:{active:[1,1,1,1,1,1,1,1],energy:.68},
-  BREAK:{active:[0,0,0,0,1,1,1,1],energy:.38},
-  PEAK:{active:[1,1,1,1,1,1,1,1],energy:.92},
-  OUTRO:{active:[0,0,1,0,1,0,1,0],energy:.22}
+  LIFT:{active:[1,1,1,1,1,1,1,0],energy:.68},
+  BREAK:{active:[0,1,0,0,1,1,1,0],energy:.40},
+  PEAK:{active:[1,1,1,1,1,1,1,0],energy:.90},
+  OUTRO:{active:[1,0,0,0,1,0,0,0],energy:.24}
 };
 const patterns={
  KICK:{deep:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],mid:[1,0,0,.35,1,0,0,0,1,0,0,.35,1,0,0,0],drive:[1,0,.35,0,1,0,.35,0,1,0,.35,0,1,0,.5,.35]},
@@ -51,10 +51,11 @@ async function loadPack(name,keepActive=false){
   applyAll();
   const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();
   status(name+' local role engine loaded · sampled drums/voice loading in background.');
-  api.loadPerformancePack?.().then(r=>{
-    if(r?.loaded)status(name+' · '+r.loaded+' sampled performance roles online · bass/harmony remain phrase-driven.');
-  }).catch(()=>status(name+' · local hybrid engine active.'));
+  const sampleResult=await api.loadPerformancePack?.().catch(()=>null);
+  if(sampleResult?.loaded)status(name+' · sampled drums online · bass/harmony phrase engine ready.');
+  else status(name+' · local hybrid engine active.');
   saveAuto();
+  return sampleResult;
 }
 function setEnergy(v){energy=clamp(Number(v),0,1);const s=state();if(s?.filter&&s.ctx){const hz=2200+energy*14500;s.filter.frequency.setTargetAtTime(hz,s.ctx.currentTime,.04);s.filter.Q.setTargetAtTime(.6+energy*2.8,s.ctx.currentTime,.04);}const out=q('#simpleEnergyV');if(out)out.textContent=Math.round(energy*100)+'%';applyAll();saveAuto();}
 function paintScene(){
@@ -73,15 +74,52 @@ function queueScene(name){
   status(name+' queued for the next bar.');
   api.queueBarAction(()=>{applySceneNow(name);status(name+' LIVE · one Loop Core, one transport.');});
 }
+function scheduleBars(count,fn,token){
+  const api=window.TWIS_LOOP_DECK?.commands;
+  let left=count;
+  const step=()=>{
+    if(token!==autoMixToken)return;
+    left--;
+    if(left<=0){fn();return;}
+    api?.queueBarAction?.(step);
+  };
+  api?.queueBarAction?.(step);
+}
+function startProfessionalArc(){
+  const token=++autoMixToken;
+  applySceneNow('INTRO');
+  scheduleBars(2,()=>{
+    applySceneNow('DEEP');
+    scheduleBars(4,()=>{
+      applySceneNow('LIFT');
+      scheduleBars(4,()=>{
+        applySceneNow('BREAK');
+        window.TWIS_LOOP_DECK?.commands?.setWash?.(true);
+        scheduleBars(3,()=>{
+          window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
+          buildBarsLeft=3;
+          buildStep();
+          scheduleBars(3,()=>{
+            applySceneNow('PEAK');
+            window.TWIS_LOOP_DECK?.commands?.triggerPad?.(6,.82,window.TWIS_LOOP_DECK.commands.nextGrid('bar'));
+            status('PEAK · full groove, no click-track layer.');
+          },token);
+        },token);
+      },token);
+    },token);
+  },token);
+}
 async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
-  if(!active.some(Boolean))applySceneNow('DEEP');
+  active.fill(false);applyAll();
   await api.play?.();
-  if(!packPrimed){await loadPack(packName,true);packPrimed=true;applySceneNow(currentScene);}
+  if(!packPrimed){await loadPack(packName,false);packPrimed=true;}
+  startProfessionalArc();
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
-  status('SET LIVE · '+currentScene+' · shared Loop Core.');
+  status('SET LIVE · kick + bass + pad first. Percussion builds in, not a metronome.');
 }
 function stopClear(){
+  autoMixToken++;
   active.fill(false);applyAll();
   window.TWIS_LOOP_DECK?.commands?.stop?.();
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY SET';
