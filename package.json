@@ -15,10 +15,12 @@
     "test:python": "python -m pytest tests",
     "test:api": "python tests/api_e2e_test.py",
     "test:worker": "node tests/cloudflare_worker_contract_test.mjs",
-    "test": "npm run test:python && npm run test:api && npm run test:worker"
+    "test": "npm run test:python && npm run test:api && npm run test:worker",
+    "test:pro-rig-browser": "node tests/pro_rig_browser_smoke.mjs"
   },
   "devDependencies": {
     "next": "file:cloudflare/next-build-shim",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.0.0",
+    "playwright": "^1.55.0"
   }
 }
