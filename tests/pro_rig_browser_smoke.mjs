@@ -66,6 +66,12 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
     };
   });
   if(sonic.roles.map(x=>x.role).join(',')!=='KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL')throw new Error(label+': role map broken '+JSON.stringify(sonic));
+  const startup=await page.evaluate(()=>({
+    intro:document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),
+    hats:document.querySelectorAll('.simple-role')[2]?.classList.contains('active'),
+    perc:document.querySelectorAll('.simple-role')[3]?.classList.contains('active')
+  }));
+  if(!startup.intro||startup.hats||startup.perc)throw new Error(label+': startup still reads like a click track '+JSON.stringify(startup));
   if(sonic.sampled<4)throw new Error(label+': sampled drum/voice layer did not load '+JSON.stringify(sonic));
   if(sonic.kickDuration<0.08)throw new Error(label+': kick sample missing/too short '+JSON.stringify(sonic));
   if(sonic.bassRms<0.02||sonic.bassDuration<0.3)throw new Error(label+': bass voice missing '+JSON.stringify(sonic));
