@@ -5,6 +5,7 @@ loop=(ROOT/'app'/'loop-deck.html').read_text()
 core=(ROOT/'app'/'assets'/'twis-loop-core.js').read_text()
 engine=(ROOT/'app'/'assets'/'twis-loop-deck-v2.js').read_text()
 simple=(ROOT/'app'/'assets'/'twis-simple-perform.js').read_text()
+sound=(ROOT/'app'/'assets'/'twis-loop-sound-rack.js').read_text()
 sw=(ROOT/'app'/'service-worker.js').read_text()
 sw2=(ROOT/'app'/'sw.js').read_text()
 
@@ -19,6 +20,15 @@ assert "outputGate" in engine and "outputGate.gain.setTargetAtTime(0" in engine
 assert "document.querySelectorAll(\'.ld-step.now\').forEach" in engine
 assert "stopCount++;$(\'.ld-step.now\').forEach" not in engine
 assert "PLAY SET" in simple and "STOP / CLEAR" in simple
+assert "loadPerformancePack" in simple
+assert "PERFORMANCE_ASSETS" in sound
+assert "bounce-kick-01.wav" in sound
+assert "hi-hat-closed-01.wav" in sound
+assert "clap-01.wav" in sound
+assert "am_ash.wav" in sound
+assert "FORMANT VOICE" in sound
+assert "performanceRate" in engine
+assert "KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL" not in simple  # roles are explicit array, not one collapsed sound
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw
 assert '"./assets/twis-pro-rig-v4.js"' not in sw
