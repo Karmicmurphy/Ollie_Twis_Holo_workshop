@@ -6,11 +6,11 @@ const proMode=new URLSearchParams(location.search).get('mode')==='pro';
 let currentScene='DEEP',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false;
 const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
 const packs={
- 'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,16]},
- 'NIGHT DRIVE':{bpm:118,key:'D MIN',presets:[1,8,5,6,11,14,22,16]},
- 'NOTHING LEFT RED':{bpm:100,key:'D MIN',presets:[0,9,5,7,13,18,23,17]},
- 'ROAD SIGNAL':{bpm:112,key:'D MIN',presets:[2,8,5,6,11,14,22,16]},
- 'INDUSTRIAL BLUES':{bpm:88,key:'D MIN',presets:[0,9,4,7,11,15,23,18]}
+ 'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,24]},
+ 'NIGHT DRIVE':{bpm:118,key:'D MIN',presets:[1,8,5,6,13,14,22,24]},
+ 'NOTHING LEFT RED':{bpm:100,key:'D MIN',presets:[0,9,5,7,13,15,23,24]},
+ 'ROAD SIGNAL':{bpm:112,key:'D MIN',presets:[2,8,5,6,13,14,22,24]},
+ 'INDUSTRIAL BLUES':{bpm:88,key:'D MIN',presets:[0,9,4,7,13,15,23,24]}
 };
 const performanceScenes={
   INTRO:{active:[0,0,0,0,1,0,1,1],energy:.24},
@@ -42,7 +42,20 @@ function syncAdvancedSeq(){const s=state();if(!s)return;qa('.ld-step').forEach(b
 function toggleRole(i){if(!ensureTransport())return;active[i]=!active[i];applyRole(i);syncAdvancedSeq();paintPads();status(roles[i]+(active[i]?' ON · locked to the groove.':' OFF · drops cleanly on the running pattern.'));saveAuto();}
 function paintPads(){qa('.simple-role').forEach((b,i)=>b.classList.toggle('active',!!active[i]));}
 function paintStatus(){const s=state(),pack=packs[packName];const bpm=q('#simpleBpm'),key=q('#simpleKey');if(bpm)bpm.textContent=Math.round(s?.bpm||pack.bpm)+' BPM';if(key)key.textContent=pack.key;}
-async function loadPack(name,keepActive=false){const api=window.TWIS_LOOP_SOUND_RACK, def=packs[name];if(!api||!def)return status('Sound engine is still waking up. Try PACK again in a second.');packName=name;setBpm(def.bpm);for(let i=0;i<8;i++){api.loadPresetToPad?.(i,def.presets[i]);await new Promise(r=>setTimeout(r,4));}if(!keepActive)active.fill(false);applyAll();const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();status(name+' loaded. Tap a layer and it will keep playing until you tap it again.');saveAuto();}
+async function loadPack(name,keepActive=false){
+  const api=window.TWIS_LOOP_SOUND_RACK,def=packs[name];
+  if(!api||!def)return status('Sound engine is still waking up. Try PACK again in a second.');
+  packName=name;setBpm(def.bpm);
+  for(let i=0;i<8;i++){api.loadPresetToPad?.(i,def.presets[i]);await new Promise(r=>setTimeout(r,4));}
+  if(!keepActive)active.fill(false);
+  applyAll();
+  const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();
+  status(name+' local role engine loaded · sampled drums/voice loading in background.');
+  api.loadPerformancePack?.().then(r=>{
+    if(r?.loaded)status(name+' · '+r.loaded+' sampled performance roles online · bass/harmony remain phrase-driven.');
+  }).catch(()=>status(name+' · local hybrid engine active.'));
+  saveAuto();
+}
 function setEnergy(v){energy=clamp(Number(v),0,1);const s=state();if(s?.filter&&s.ctx){const hz=2200+energy*14500;s.filter.frequency.setTargetAtTime(hz,s.ctx.currentTime,.04);s.filter.Q.setTargetAtTime(.6+energy*2.8,s.ctx.currentTime,.04);}const out=q('#simpleEnergyV');if(out)out.textContent=Math.round(energy*100)+'%';applyAll();saveAuto();}
 function paintScene(){
   qa('[data-performance-scene]').forEach(b=>b.classList.toggle('active',b.dataset.performanceScene===currentScene));
