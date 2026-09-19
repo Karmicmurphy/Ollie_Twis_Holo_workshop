@@ -152,6 +152,53 @@ async function runCase(label, contextOptions, opts={}){
   return {label,diag,pack};
 }
 
+
+async function runLoopDeckCase(){
+  const browser=await chromium.launch({headless:true});
+  const context=await browser.newContext({...devices['Pixel 7'],viewport:{width:412,height:915}});
+  const page=await context.newPage();
+  const errors=[];
+  page.on('pageerror',e=>errors.push(String(e)));
+  await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.click('#loops');
+  await page.waitForURL(/loop-deck\.html/);
+  await page.waitForSelector('.simple-shell',{timeout:12000});
+  const roles=await page.locator('.simple-role').count();
+  if(roles!==8) throw new Error('loop-deck: expected 8 simple roles, got '+roles);
+  const playTarget=await page.locator('.simple-role').first().boundingBox();
+  if(!playTarget||playTarget.width<44||playTarget.height<44) throw new Error('loop-deck: touch target too small');
+  await page.locator('.simple-role').first().click();
+  await page.waitForFunction(()=>window.TWIS_LOOP_DECK?.state?.playing===true,null,{timeout:5000});
+  await page.click('#simpleStop');
+  if(errors.length) throw new Error('loop-deck browser errors '+errors.join(' | '));
+  await browser.close();
+  return {roles,playingPath:true};
+}
+
+async function runOfflineWarmCase(){
+  const browser=await chromium.launch({headless:true});
+  const context=await browser.newContext({viewport:{width:1366,height:768}});
+  const page=await context.newPage();
+  await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.evaluate(()=>navigator.serviceWorker?.ready);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.click('#play');
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot().running===true,null,{timeout:12000});
+  await page.click('#play');
+  await sleep(250);
+  await context.setOffline(true);
+  await page.reload({waitUntil:'domcontentloaded',timeout:12000});
+  await page.waitForSelector('#play',{timeout:5000});
+  if(await page.locator('#clock').innerText()!=='SILENT') throw new Error('offline warm reload not silent');
+  await page.click('#play');
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot().running===true,null,{timeout:12000});
+  const rows=await sampleHealth(page,8,100);
+  if(maxLevel(rows)<0.00002) throw new Error('offline warm fallback produced no audio');
+  await page.click('#play');
+  await browser.close();
+  return {warmOffline:true};
+}
+
 await waitServer();
 
 try{
@@ -159,7 +206,9 @@ try{
   const mobile=await runCase('mobile',{...devices['Pixel 7'],viewport:{width:412,height:915}});
   const fallback=await runCase('sample-failure',{viewport:{width:1366,height:768}},{blockSamples:true});
   const slow=await runCase('slow-samples',{viewport:{width:1366,height:768}},{slowSamples:true});
-  console.log('PRO RIG FINISH BROWSER PROOF PASS '+JSON.stringify({desktop,mobile,fallback,slow}));
+  const loopDeck=await runLoopDeckCase();
+  const offline=await runOfflineWarmCase();
+  console.log('PRO RIG FINISH BROWSER PROOF PASS '+JSON.stringify({desktop,mobile,fallback,slow,loopDeck,offline}));
 }finally{
   server.kill('SIGTERM');
 }
