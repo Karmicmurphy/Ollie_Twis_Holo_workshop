@@ -15,6 +15,9 @@ assert "new core.TransportClock" in engine
 assert "new core.LoopStateMachine" in engine
 assert "setEcho" in engine and "setWash" in engine
 assert "function stopAll(){stop();}" in engine
+assert "outputGate" in engine and "outputGate.gain.setTargetAtTime(0" in engine
+assert "$(\'.ld-step.now\').forEach" in engine
+assert "$(\'.ld-step.now\').forEach" not in engine
 assert "PLAY SET" in simple and "STOP / CLEAR" in simple
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw
