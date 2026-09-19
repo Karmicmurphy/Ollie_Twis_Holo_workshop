@@ -10,22 +10,22 @@
 <link rel="manifest" href="loop-deck.webmanifest">
 <link rel="icon" type="image/svg+xml" href="assets/icons/twis-loop-deck-icon.svg">
 <link rel="apple-touch-icon" href="assets/icons/twis-loop-deck-icon-192.png">
-<link rel="stylesheet" href="assets/twis-loop-deck.css?v=20260918-simple2">
+<link rel="stylesheet" href="assets/twis-loop-deck.css?v=20260919-core1">
 <style>html,body{margin:0;background:#07090b;min-height:100%;font-family:system-ui,sans-serif}.boot{display:grid;place-items:center;height:100dvh;color:#dce8ed}.boot button{min-width:220px;min-height:60px;border-radius:14px;border:1px solid #35c889;background:#15382c;color:#fff;font-size:18px;font-weight:900;letter-spacing:.05em}</style>
 </head>
 <body>
 <div class="boot" id="boot"><button id="bootBtn">OPEN TWIS LOOP DECK V2</button></div>
-<script src="assets/twis-loop-deck-v2.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-deck-modules.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-calibration.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-forge.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-sound-rack.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-personal-packs.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-guide.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-colors.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-fuckit.js?v=20260918-simple2"></script>
-<script src="assets/twis-loop-performance.js?v=20260918-simple2"></script>
-<script src="assets/twis-simple-perform.js?v=20260918-simple2"></script>
+<script src="assets/twis-loop-core.js?v=20260919-core1"></script>\n<script src="assets/twis-loop-deck-v2.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-deck-modules.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-calibration.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-forge.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-sound-rack.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-personal-packs.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-guide.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-colors.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-fuckit.js?v=20260919-core1"></script>
+<script src="assets/twis-loop-performance.js?v=20260919-core1"></script>
+<script src="assets/twis-simple-perform.js?v=20260919-core1"></script>
 <script>
 window.addEventListener('DOMContentLoaded',()=>{
   const safeInstall=(name,obj)=>{try{obj?.install?.()}catch(e){console.error(`TWIS ${name} install failed`,e)}};
@@ -48,7 +48,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('bootBtn').onclick=go;
   go();
 });
-if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=20260918-simple2',{updateViaCache:'none'}).catch(()=>{}));}
+if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=20260919-core1',{updateViaCache:'none'}).catch(()=>{}));}
 </script>
 </body>
 </html>
