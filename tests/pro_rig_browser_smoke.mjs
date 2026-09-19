@@ -46,9 +46,32 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
 
   await page.click('#simplePlaySet');
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===true,null,{timeout:7000});
+  const startupNow=await page.evaluate(()=>({intro:document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),hats:document.querySelectorAll('.simple-role')[2]?.classList.contains('active'),perc:document.querySelectorAll('.simple-role')[3]?.classList.contains('active')}));
+  if(!startupNow.intro||startupNow.hats||startupNow.perc)throw new Error(label+': PLAY still starts like a click track '+JSON.stringify(startupNow));
   await page.evaluate(()=>window.TWIS_LOOP_DECK.commands.setBpm(240));
   const p=await samplePeak(page,18,90);
   if(p<0.00002)throw new Error(label+': PLAY produced no measurable audio');
+  await page.waitForFunction(()=>['SAMPLED','HYBRID'].includes(window.TWIS_LOOP_DECK.health().sonicPackState),null,{timeout:12000});
+  const sonic=await page.evaluate(()=>{
+    const s=window.TWIS_LOOP_DECK.state,h=window.TWIS_LOOP_DECK.health();
+    const rms=buf=>{if(!buf)return 0;const x=buf.getChannelData(0);let sum=0;for(let i=0;i<x.length;i+=8)sum+=x[i]*x[i];return Math.sqrt(sum/Math.ceil(x.length/8));};
+    return {
+      state:h.sonicPackState,
+      roles:h.roles,
+      sampled:h.roles.filter(x=>x.sampled).length,
+      kickDuration:s.padBuffers[0]?.duration||0,
+      bassDuration:s.padBuffers[1]?.duration||0,
+      bassRms:rms(s.padBuffers[1]),
+      padDuration:s.padBuffers[4]?.duration||0,
+      melodyDuration:s.padBuffers[5]?.duration||0,
+      vocalDuration:s.padBuffers[7]?.duration||0
+    };
+  });
+  if(sonic.roles.map(x=>x.role).join(',')!=='KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL')throw new Error(label+': role map broken '+JSON.stringify(sonic));
+  if(sonic.sampled<4)throw new Error(label+': sampled drum/voice layer did not load '+JSON.stringify(sonic));
+  if(sonic.kickDuration<0.08)throw new Error(label+': kick sample missing/too short '+JSON.stringify(sonic));
+  if(sonic.bassRms<0.02||sonic.bassDuration<0.3)throw new Error(label+': bass voice missing '+JSON.stringify(sonic));
+  if(sonic.padDuration<1.5||sonic.melodyDuration<0.1||sonic.vocalDuration<0.1)throw new Error(label+': tonal/vocal roles missing '+JSON.stringify(sonic));
 
   const roles=await page.locator('.simple-role').count();
   if(roles!==8)throw new Error(label+': expected 8 performance roles');
@@ -101,7 +124,7 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
   if(h.playing||h.contextState!=='not-started')throw new Error(label+': reload not clean '+JSON.stringify(h));
   if(errors.length)throw new Error(label+': browser errors '+errors.join(' | '));
   await browser.close();
-  return {label,peak:p,roles};
+  return {label,peak:p,roles,sonic};
 }
 
 async function runAdvancedPath(){

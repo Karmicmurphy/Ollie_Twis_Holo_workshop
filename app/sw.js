@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v17-one-loop-core";
+const CACHE_NAME = "twis-holo-workshop-v18-sonic-salvage";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -21,6 +21,10 @@ const APP_SHELL = [
   "./assets/twis-loop-fuckit.js",
   "./assets/twis-loop-performance.js",
   "./assets/twis-simple-perform.js",
+  "./assets/samples/twis/909-kick.wav",
+  "./assets/samples/twis/hat-closed-03.wav",
+  "./assets/samples/twis/perc-02.wav",
+  "./assets/samples/twis/crash-01.wav",
   "./assets/loop-recorder-worklet.js",
   "./assets/ghost-ring-worklet.js",
   "./assets/road-signal-machine.js",

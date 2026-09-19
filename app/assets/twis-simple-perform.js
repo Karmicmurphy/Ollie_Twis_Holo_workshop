@@ -3,28 +3,28 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let installed=false, active=Array(8).fill(false), energy=.52, packName='DEEP MELODIC HOUSE', lastGhostLoop=-1;
 const proMode=new URLSearchParams(location.search).get('mode')==='pro';
-let currentScene='DEEP',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false;
+let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0;
 const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
 const packs={
- 'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,16]},
- 'NIGHT DRIVE':{bpm:118,key:'D MIN',presets:[1,8,5,6,11,14,22,16]},
- 'NOTHING LEFT RED':{bpm:100,key:'D MIN',presets:[0,9,5,7,13,18,23,17]},
- 'ROAD SIGNAL':{bpm:112,key:'D MIN',presets:[2,8,5,6,11,14,22,16]},
- 'INDUSTRIAL BLUES':{bpm:88,key:'D MIN',presets:[0,9,4,7,11,15,23,18]}
+ 'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,24]},
+ 'NIGHT DRIVE':{bpm:118,key:'D MIN',presets:[1,8,5,6,13,14,22,24]},
+ 'NOTHING LEFT RED':{bpm:100,key:'D MIN',presets:[0,9,5,7,13,15,23,24]},
+ 'ROAD SIGNAL':{bpm:112,key:'D MIN',presets:[2,8,5,6,13,14,22,24]},
+ 'INDUSTRIAL BLUES':{bpm:88,key:'D MIN',presets:[0,9,4,7,13,15,23,24]}
 };
 const performanceScenes={
-  INTRO:{active:[0,0,0,0,1,0,1,1],energy:.24},
-  DEEP:{active:[1,1,1,1,1,1,1,0],energy:.50},
-  LIFT:{active:[1,1,1,1,1,1,1,1],energy:.68},
-  BREAK:{active:[0,0,0,0,1,1,1,1],energy:.38},
-  PEAK:{active:[1,1,1,1,1,1,1,1],energy:.92},
-  OUTRO:{active:[0,0,1,0,1,0,1,0],energy:.22}
+  INTRO:{active:[1,1,0,0,1,0,0,0],energy:.30},
+  DEEP:{active:[1,1,0,1,1,1,0,0],energy:.50},
+  LIFT:{active:[1,1,1,1,1,1,1,0],energy:.68},
+  BREAK:{active:[0,1,0,0,1,1,1,0],energy:.40},
+  PEAK:{active:[1,1,1,1,1,1,1,0],energy:.90},
+  OUTRO:{active:[1,0,0,0,1,0,0,0],energy:.24}
 };
 const patterns={
  KICK:{deep:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],mid:[1,0,0,.35,1,0,0,0,1,0,0,.35,1,0,0,0],drive:[1,0,.35,0,1,0,.35,0,1,0,.35,0,1,0,.5,.35]},
  BASS:{deep:[1,0,0,0,0,0,.65,0,1,0,0,0,0,.55,0,0],mid:[1,0,0,.55,0,0,.75,0,1,0,.5,0,0,.7,0,.4],drive:[1,0,.45,.7,0,.4,.85,0,1,.45,.65,0,.45,.8,0,.6]},
- HATS:{deep:[0,.45,0,.45,0,.45,0,.45,0,.45,0,.45,0,.45,0,.45],mid:[0,.65,0,.75,0,.65,0,.8,0,.65,0,.75,0,.65,0,.9],drive:[.3,.85,.3,.9,.3,.85,.45,1,.3,.85,.3,.9,.45,.85,.55,1]},
- PERC:{deep:[0,0,0,0,0,.45,0,0,0,0,0,0,0,.4,0,0],mid:[0,0,.4,0,0,.55,0,.35,0,0,.4,0,0,.65,0,.35],drive:[0,.35,.55,0,.3,.7,0,.5,0,.35,.55,0,.35,.8,.4,.55]},
+ HATS:{deep:[0,0,.18,0,0,.28,0,0,0,0,.22,0,0,.34,0,.16],mid:[0,.28,0,.55,0,.22,0,.68,0,.32,0,.48,0,.24,.18,.72],drive:[.14,.46,.22,.72,.18,.5,.26,.82,.14,.44,.2,.7,.24,.52,.32,.9]},
+ PERC:{deep:[0,0,0,0,0,.28,0,0,0,0,.18,0,0,0,0,.34],mid:[0,0,.26,0,0,.42,0,.18,0,0,0,.3,0,.5,0,.24],drive:[0,.18,.36,0,.2,.56,0,.28,0,.22,.4,0,.24,.62,.18,.34]},
  PAD:{deep:[.65,0,0,0,0,0,0,0,.6,0,0,0,0,0,0,0],mid:[.75,0,0,0,0,0,0,0,.7,0,0,0,0,0,0,0],drive:[.8,0,0,0,.45,0,0,0,.8,0,0,0,.5,0,0,0]},
  MELODY:{deep:[0,0,0,0,0,0,.35,0,0,0,0,0,0,0,.3,0],mid:[0,0,.35,0,0,0,.55,0,0,.35,0,0,0,0,.5,0],drive:[0,.35,.55,0,.4,0,.7,0,0,.45,.6,0,.4,0,.75,.35]},
  FX:{deep:[0,0,0,0,0,0,0,0,0,0,0,0,.35,0,0,0],mid:[0,0,0,0,0,0,0,.3,0,0,0,0,.55,0,0,0],drive:[0,0,0,.25,0,0,0,.45,0,0,0,.3,.75,0,0,.4]},
@@ -42,7 +42,21 @@ function syncAdvancedSeq(){const s=state();if(!s)return;qa('.ld-step').forEach(b
 function toggleRole(i){if(!ensureTransport())return;active[i]=!active[i];applyRole(i);syncAdvancedSeq();paintPads();status(roles[i]+(active[i]?' ON · locked to the groove.':' OFF · drops cleanly on the running pattern.'));saveAuto();}
 function paintPads(){qa('.simple-role').forEach((b,i)=>b.classList.toggle('active',!!active[i]));}
 function paintStatus(){const s=state(),pack=packs[packName];const bpm=q('#simpleBpm'),key=q('#simpleKey');if(bpm)bpm.textContent=Math.round(s?.bpm||pack.bpm)+' BPM';if(key)key.textContent=pack.key;}
-async function loadPack(name,keepActive=false){const api=window.TWIS_LOOP_SOUND_RACK, def=packs[name];if(!api||!def)return status('Sound engine is still waking up. Try PACK again in a second.');packName=name;setBpm(def.bpm);for(let i=0;i<8;i++){api.loadPresetToPad?.(i,def.presets[i]);await new Promise(r=>setTimeout(r,4));}if(!keepActive)active.fill(false);applyAll();const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();status(name+' loaded. Tap a layer and it will keep playing until you tap it again.');saveAuto();}
+async function loadPack(name,keepActive=false){
+  const api=window.TWIS_LOOP_SOUND_RACK,def=packs[name];
+  if(!api||!def)return status('Sound engine is still waking up. Try PACK again in a second.');
+  packName=name;setBpm(def.bpm);
+  for(let i=0;i<8;i++){api.loadPresetToPad?.(i,def.presets[i]);await new Promise(r=>setTimeout(r,4));}
+  if(!keepActive)active.fill(false);
+  applyAll();
+  const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();
+  status(name+' local role engine loaded · sampled drums/voice loading in background.');
+  const sampleResult=await api.loadPerformancePack?.().catch(()=>null);
+  if(sampleResult?.loaded)status(name+' · sampled drums online · bass/harmony phrase engine ready.');
+  else status(name+' · local hybrid engine active.');
+  saveAuto();
+  return sampleResult;
+}
 function setEnergy(v){energy=clamp(Number(v),0,1);const s=state();if(s?.filter&&s.ctx){const hz=2200+energy*14500;s.filter.frequency.setTargetAtTime(hz,s.ctx.currentTime,.04);s.filter.Q.setTargetAtTime(.6+energy*2.8,s.ctx.currentTime,.04);}const out=q('#simpleEnergyV');if(out)out.textContent=Math.round(energy*100)+'%';applyAll();saveAuto();}
 function paintScene(){
   qa('[data-performance-scene]').forEach(b=>b.classList.toggle('active',b.dataset.performanceScene===currentScene));
@@ -60,15 +74,52 @@ function queueScene(name){
   status(name+' queued for the next bar.');
   api.queueBarAction(()=>{applySceneNow(name);status(name+' LIVE · one Loop Core, one transport.');});
 }
+function scheduleBars(count,fn,token){
+  const api=window.TWIS_LOOP_DECK?.commands;
+  let left=count;
+  const step=()=>{
+    if(token!==autoMixToken)return;
+    left--;
+    if(left<=0){fn();return;}
+    api?.queueBarAction?.(step);
+  };
+  api?.queueBarAction?.(step);
+}
+function startProfessionalArc(){
+  const token=++autoMixToken;
+  applySceneNow('INTRO');
+  scheduleBars(2,()=>{
+    applySceneNow('DEEP');
+    scheduleBars(4,()=>{
+      applySceneNow('LIFT');
+      scheduleBars(4,()=>{
+        applySceneNow('BREAK');
+        window.TWIS_LOOP_DECK?.commands?.setWash?.(true);
+        scheduleBars(3,()=>{
+          window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
+          buildBarsLeft=3;
+          buildStep();
+          scheduleBars(3,()=>{
+            applySceneNow('PEAK');
+            window.TWIS_LOOP_DECK?.commands?.triggerPad?.(6,.82,window.TWIS_LOOP_DECK.commands.nextGrid('bar'));
+            status('PEAK · full groove, no click-track layer.');
+          },token);
+        },token);
+      },token);
+    },token);
+  },token);
+}
 async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
-  if(!active.some(Boolean))applySceneNow('DEEP');
+  active.fill(false);applyAll();
   await api.play?.();
-  if(!packPrimed){await loadPack(packName,true);packPrimed=true;applySceneNow(currentScene);}
+  if(!packPrimed){await loadPack(packName,false);await restoreCustomSounds();packPrimed=true;}
+  startProfessionalArc();
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
-  status('SET LIVE · '+currentScene+' · shared Loop Core.');
+  status('SET LIVE · kick + bass + pad first. Percussion builds in, not a metronome.');
 }
 function stopClear(){
+  autoMixToken++;
   active.fill(false);applyAll();
   window.TWIS_LOOP_DECK?.commands?.stop?.();
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY SET';
@@ -130,7 +181,7 @@ function deleteSession(name){saveSessions(sessionStore().filter(x=>x.name!==name
 function renderSessionList(){const box=q('#simpleSessions');if(!box)return;const a=sessionStore();box.innerHTML=a.length?a.map(x=>'<div class="simple-session"><button data-load-session="'+esc(x.name)+'">'+esc(x.name)+'</button><button class="trash" data-del-session="'+esc(x.name)+'">×</button></div>').join(''):'<p class="simple-muted">No saved sessions yet.</p>';qa('[data-load-session]').forEach(b=>b.onclick=()=>loadSession(b.dataset.loadSession));qa('[data-del-session]').forEach(b=>b.onclick=()=>deleteSession(b.dataset.delSession));}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function saveAuto(){localStorage.twisSimpleAuto=JSON.stringify({packName,energy,active,bpm:state()?.bpm||124});}
-async function restoreAuto(){let x={};try{x=JSON.parse(localStorage.twisSimpleAuto||'{}')}catch{};packName=packs[x.packName]?x.packName:'DEEP MELODIC HOUSE';energy=Number.isFinite(x.energy)?x.energy:.52;active=Array.isArray(x.active)?x.active.slice(0,8):Array(8).fill(false);await loadPack(packName,true);const er=q('#simpleEnergy');if(er)er.value=String(energy);setEnergy(energy);if(x.bpm)setBpm(x.bpm);applyAll();paintPads();}
+function restoreAuto(){let x={};try{x=JSON.parse(localStorage.twisSimpleAuto||'{}')}catch{};packName=packs[x.packName]?x.packName:'DEEP MELODIC HOUSE';energy=Number.isFinite(x.energy)?x.energy:.52;active=Array.isArray(x.active)?x.active.slice(0,8):Array(8).fill(false);const er=q('#simpleEnergy');if(er)er.value=String(energy);if(x.bpm)setBpm(x.bpm);applyAll();paintPads();}
 async function customSound(roleIndex,file){if(!file)return;const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadFileToPad)return status('Sound rack is not ready.');const ok=await api.loadFileToPad(roleIndex,file);if(!ok)return;await opfsWrite('simple-sounds/'+roleIndex+'.audio',new Uint8Array(await file.arrayBuffer()));localStorage.setItem('twisSimpleSound'+roleIndex,JSON.stringify({name:file.name,type:file.type||''}));status(file.name+' is now your '+roles[roleIndex]+' sound.');}
 async function restoreCustomSounds(){const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadArrayBufferToPad)return;for(let i=0;i<8;i++){let meta;try{meta=JSON.parse(localStorage.getItem('twisSimpleSound'+i)||'null')}catch{};if(!meta)continue;const f=await opfsRead('simple-sounds/'+i+'.audio');if(f)await api.loadArrayBufferToPad(i,f.buffer,meta.name,meta.type);}}
 function openDrawer(which){q('#simpleDrawer')?.classList.add('open');qa('.simple-drawer-panel').forEach(x=>x.hidden=x.dataset.panel!==which);if(which==='sessions')renderSessionList();}
@@ -186,7 +237,7 @@ async function install(){
   if(installed)return;if(!build()){setTimeout(install,140);return}
   installed=true;easy();
   setTimeout(async()=>{
-    await restoreAuto();await restoreCustomSounds();paintStatus();paintScene();
+    restoreAuto();paintStatus();paintScene();
     status(proMode?'Ready. PLAY SET starts the unified Loop Core.':'Ready. Tap PLAY SET or a layer and perform.');
   },350);
 }
