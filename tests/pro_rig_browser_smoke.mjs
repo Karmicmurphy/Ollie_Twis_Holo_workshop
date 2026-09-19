@@ -55,6 +55,7 @@ async function runCase(label, contextOptions, opts={}){
 
   await page.goto('http://127.0.0.1:8765/pro-rig.html', {waitUntil:'domcontentloaded'});
   await page.waitForSelector('#play');
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot,null,{timeout:12000});
 
   const box=await page.locator('#play').boundingBox();
   if(!box || box.width<44 || box.height<44) throw new Error(label+': PLAY touch target too small');
@@ -183,6 +184,7 @@ async function runLoopDeckCase(){
   const errors=[];
   page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot,null,{timeout:12000});
   await page.click('#loops');
   await page.waitForURL(/loop-deck\.html/);
   await page.waitForSelector('.simple-shell',{timeout:12000});
@@ -203,6 +205,7 @@ async function runOfflineWarmCase(){
   const context=await browser.newContext({viewport:{width:1366,height:768}});
   const page=await context.newPage();
   await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot,null,{timeout:12000});
   await page.evaluate(()=>navigator.serviceWorker?.ready);
   await page.reload({waitUntil:'domcontentloaded'});
   await page.click('#play');
