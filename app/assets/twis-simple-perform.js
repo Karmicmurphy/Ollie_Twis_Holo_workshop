@@ -113,7 +113,7 @@ async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
   active.fill(false);applyAll();
   await api.play?.();
-  if(!packPrimed){await loadPack(packName,false);packPrimed=true;}
+  if(!packPrimed){await loadPack(packName,false);await restoreCustomSounds();packPrimed=true;}
   startProfessionalArc();
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
   status('SET LIVE · kick + bass + pad first. Percussion builds in, not a metronome.');
@@ -181,7 +181,7 @@ function deleteSession(name){saveSessions(sessionStore().filter(x=>x.name!==name
 function renderSessionList(){const box=q('#simpleSessions');if(!box)return;const a=sessionStore();box.innerHTML=a.length?a.map(x=>'<div class="simple-session"><button data-load-session="'+esc(x.name)+'">'+esc(x.name)+'</button><button class="trash" data-del-session="'+esc(x.name)+'">×</button></div>').join(''):'<p class="simple-muted">No saved sessions yet.</p>';qa('[data-load-session]').forEach(b=>b.onclick=()=>loadSession(b.dataset.loadSession));qa('[data-del-session]').forEach(b=>b.onclick=()=>deleteSession(b.dataset.delSession));}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function saveAuto(){localStorage.twisSimpleAuto=JSON.stringify({packName,energy,active,bpm:state()?.bpm||124});}
-async function restoreAuto(){let x={};try{x=JSON.parse(localStorage.twisSimpleAuto||'{}')}catch{};packName=packs[x.packName]?x.packName:'DEEP MELODIC HOUSE';energy=Number.isFinite(x.energy)?x.energy:.52;active=Array.isArray(x.active)?x.active.slice(0,8):Array(8).fill(false);await loadPack(packName,true);const er=q('#simpleEnergy');if(er)er.value=String(energy);setEnergy(energy);if(x.bpm)setBpm(x.bpm);applyAll();paintPads();}
+function restoreAuto(){let x={};try{x=JSON.parse(localStorage.twisSimpleAuto||'{}')}catch{};packName=packs[x.packName]?x.packName:'DEEP MELODIC HOUSE';energy=Number.isFinite(x.energy)?x.energy:.52;active=Array.isArray(x.active)?x.active.slice(0,8):Array(8).fill(false);const er=q('#simpleEnergy');if(er)er.value=String(energy);if(x.bpm)setBpm(x.bpm);applyAll();paintPads();}
 async function customSound(roleIndex,file){if(!file)return;const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadFileToPad)return status('Sound rack is not ready.');const ok=await api.loadFileToPad(roleIndex,file);if(!ok)return;await opfsWrite('simple-sounds/'+roleIndex+'.audio',new Uint8Array(await file.arrayBuffer()));localStorage.setItem('twisSimpleSound'+roleIndex,JSON.stringify({name:file.name,type:file.type||''}));status(file.name+' is now your '+roles[roleIndex]+' sound.');}
 async function restoreCustomSounds(){const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadArrayBufferToPad)return;for(let i=0;i<8;i++){let meta;try{meta=JSON.parse(localStorage.getItem('twisSimpleSound'+i)||'null')}catch{};if(!meta)continue;const f=await opfsRead('simple-sounds/'+i+'.audio');if(f)await api.loadArrayBufferToPad(i,f.buffer,meta.name,meta.type);}}
 function openDrawer(which){q('#simpleDrawer')?.classList.add('open');qa('.simple-drawer-panel').forEach(x=>x.hidden=x.dataset.panel!==which);if(which==='sessions')renderSessionList();}
@@ -237,7 +237,7 @@ async function install(){
   if(installed)return;if(!build()){setTimeout(install,140);return}
   installed=true;easy();
   setTimeout(async()=>{
-    await restoreAuto();await restoreCustomSounds();paintStatus();paintScene();
+    restoreAuto();paintStatus();paintScene();
     status(proMode?'Ready. PLAY SET starts the unified Loop Core.':'Ready. Tap PLAY SET or a layer and perform.');
   },350);
 }
