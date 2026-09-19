@@ -11,13 +11,13 @@ const PRESETS=[
  ['KEYS','SOFT KEYS','keys'],['KEYS','BELL','bell'],
  ['STRINGS','VIOLIN BOW','violin'],['STRINGS','CELLO LOW','cello'],
  ['GUITAR','CLEAN GUITAR','guitarClean'],['GUITAR','DIRTY GUITAR','guitarDirty'],['GUITAR','MUTED PICK','guitarMuted'],
- ['FX','RISE','rise'],['FX','NOISE HIT','noiseHit']
+ ['FX','RISE','rise'],['FX','NOISE HIT','noiseHit'],['VOCAL','FORMANT VOICE','voiceFormant']
 ];
 function status(t){const e=q('#ldStatus');if(e)e.textContent=t;}
 function ctx(){return st()?.ctx||null;}
 function ensureCtx(){const s=st();if(!s?.ctx){status('Tap PLAY once to wake audio, then open SOUND RACK again.');return null}return s.ctx;}
 function env(i,n,a,d,sus,r){const t=i/n;if(t<a)return t/Math.max(a,.0001);if(t<a+d)return 1-(1-sus)*((t-a)/d);if(t<1-r)return sus;return sus*Math.max(0,(1-t)/r)}
-function makeBuffer(kind){const c=ensureCtx();if(!c)return null;const sr=c.sampleRate;let dur=.5;if(['synthPad','violin','cello','rise'].includes(kind))dur=2.4;if(['guitarClean','guitarDirty'].includes(kind))dur=1.2;if(kind==='hatClosed')dur=.12;if(kind==='hatOpen')dur=.55;if(kind==='clap')dur=.32;if(kind==='snareFat')dur=.42;if(kind==='kickTight')dur=.28;const n=Math.max(1,Math.floor(sr*dur)),b=c.createBuffer(1,n,sr),x=b.getChannelData(0);let lp=0,phase=0;
+function makeBuffer(kind){const c=ensureCtx();if(!c)return null;const sr=c.sampleRate;let dur=.5;if(['synthPad','violin','cello','rise','voiceFormant'].includes(kind))dur=2.4;if(['guitarClean','guitarDirty'].includes(kind))dur=1.2;if(kind==='hatClosed')dur=.12;if(kind==='hatOpen')dur=.55;if(kind==='clap')dur=.32;if(kind==='snareFat')dur=.42;if(kind==='kickTight')dur=.28;const n=Math.max(1,Math.floor(sr*dur)),b=c.createBuffer(1,n,sr),x=b.getChannelData(0);let lp=0,phase=0;
  const noise=()=>Math.random()*2-1;
  for(let i=0;i<n;i++){
    const t=i/sr,u=i/n;let y=0;
@@ -34,6 +34,12 @@ function makeBuffer(kind){const c=ensureCtx();if(!c)return null;const sr=c.sampl
      const f=kind==='lead'?392:261.63;phase+=2*Math.PI*f/sr;const e=kind==='synthPad'?env(i,n,.16,.35,.62,.32):kind==='bell'?Math.exp(-t*3.4):env(i,n,.01,.16,.55,.22);if(kind==='synthWarm')y=(Math.sin(phase)+.35*Math.sin(phase*2))*.7*e;else if(kind==='synthBright')y=(Math.sin(phase)+.45*Math.sin(phase*2)+.25*Math.sin(phase*3))*.62*e;else if(kind==='synthPad'){const d=146.83,f3=174.61,a=220;y=(Math.sin(2*Math.PI*d*t)+.78*Math.sin(2*Math.PI*f3*t)+.64*Math.sin(2*Math.PI*a*t)+.18*Math.sin(2*Math.PI*d*2*t))*.28*e;}else if(kind==='lead')y=Math.tanh((Math.sin(phase)+.5*Math.sin(phase*2))*1.8)*.6*e;else if(kind==='keys')y=(Math.sin(phase)+.2*Math.sin(phase*2)+.12*Math.sin(phase*4))*.68*e;else y=(Math.sin(phase)+.55*Math.sin(phase*2.01)+.3*Math.sin(phase*3.98))*.55*e;
    } else if(kind==='violin'||kind==='cello'){
      const f=kind==='violin'?293.66:98;phase+=2*Math.PI*f/sr;const vib=1+.012*Math.sin(2*Math.PI*5.2*t);const p=phase*vib;const saw=2*((p/(2*Math.PI))%1)-1;const e=env(i,n,.12,.24,.78,.25);y=(saw*.45+Math.sin(p)*.3+Math.sin(p*2)*.12)*e;
+   } else if(kind==='voiceFormant'){
+     const f0=110;phase+=2*Math.PI*f0/sr;
+     const e=env(i,n,.05,.18,.72,.28);
+     const pulse=Math.sin(phase)+.38*Math.sin(phase*2)+.2*Math.sin(phase*3);
+     const vowel=.62*Math.sin(2*Math.PI*720*t)+.28*Math.sin(2*Math.PI*1150*t)+.16*Math.sin(2*Math.PI*2450*t);
+     y=Math.tanh((pulse*.48+vowel*.16)*1.6)*e*.62;
    } else if(kind==='guitarClean'||kind==='guitarDirty'||kind==='guitarMuted'){
      const f=kind==='guitarMuted'?110:196;phase+=2*Math.PI*f/sr;const e=Math.exp(-t*(kind==='guitarMuted'?13:3.8));y=(Math.sin(phase)+.5*Math.sin(phase*2)+.25*Math.sin(phase*3))*e*.55;if(kind==='guitarDirty')y=Math.tanh(y*3.4)*.8;
    } else if(kind==='rise'){const f=120*Math.pow(10,u*1.4);phase+=2*Math.PI*f/sr;y=(Math.sin(phase)*.35+noise()*.16)*u*u;}
@@ -52,6 +58,7 @@ const PERFORMANCE_ROLE_META=[
  {role:'FX',rootMidi:60,gain:.48},
  {role:'VOCAL',rootMidi:60,gain:.52}
 ];
+let performancePackPromise=null;
 const PERFORMANCE_ASSETS={
   0:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/kicks/bounce-kick-01.wav',
   2:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/hi-hats/hi-hat-closed-01.wav',
@@ -65,6 +72,8 @@ async function fetchDecode(url){
   return c.decodeAudioData((await r.arrayBuffer()).slice(0));
 }
 async function loadPerformancePack(){
+  if(performancePackPromise)return performancePackPromise;
+  performancePackPromise=(async()=>{
   const s=st(),c=ensureCtx();if(!s||!c)return {loaded:0,failed:Object.keys(PERFORMANCE_ASSETS).length};
   s.sonicPackState='LOADING';
   for(let i=0;i<8;i++){
@@ -85,6 +94,8 @@ async function loadPerformancePack(){
   status(loaded>=4?'Performance pack online · sampled kick/hats/perc/FX/voice + tonal engine.':'Performance pack running hybrid fallback · tonal engine remains active.');
   paintPads();
   return {loaded,failed:results.length-loaded,state:s.sonicPackState};
+  })().catch(e=>{performancePackPromise=null;throw e;});
+  return performancePackPromise;
 }
 function padLabel(i,label){const s=st();if(!s)return;s.padNames[i]=label;const btn=q(`.ld-pad[data-pad='${i}']`);if(btn){btn.classList.add('loaded');const sm=btn.querySelector('small');if(sm)sm.textContent=label;}}
 function loadPreset(){const s=st();if(!s)return;const sel=q('#soundPreset');if(!sel)return;const p=PRESETS[Number(sel.value)||0],buf=makeBuffer(p[2]);if(!buf)return;s.padBuffers[selectedPad]=buf;s.padMeta[selectedPad]={label:p[1],factory:true,preset:p[2],...(selectedPad<8?PERFORMANCE_ROLE_META[selectedPad]:{})};padLabel(selectedPad,p[1]);status(`Pad ${selectedPad+1} loaded: ${p[1]}.`);paintPads();}
