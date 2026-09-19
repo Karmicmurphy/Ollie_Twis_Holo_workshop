@@ -1,15 +1,13 @@
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-html=(ROOT/'app'/'pro-rig.html').read_text()
-js=(ROOT/'app'/'assets'/'twis-pro-rig-v4.js').read_text()
-assert 'twis-pro-rig-v4.js?v=4' in html
-assert 'Tap PLAY SET' in html
-for label in ['INTRO','DEEP','LIFT','BREAK','PEAK','OUTRO','BUILD','DROP','ECHO','WASH','VOCAL HIT']:
-    assert label in html
-for stem in ['KICK','BASS','PERC','CHORDS','MELODY','ATMOS','VOCAL','FX']:
-    assert stem in js
-assert 'await Tone.start()' in js
-assert "Tone.Transport.start('+0.05')" in js
-assert 'Tone.loaded()' in js
-assert 'function duck(time)' in js
-print('Amphitheater rig V4 contract PASS')
+pro=(ROOT/'app'/'pro-rig.html').read_text()
+simple=(ROOT/'app'/'assets'/'twis-simple-perform.js').read_text()
+assert "loop-deck.html?mode=pro" in pro
+assert "twis-pro-rig-v4.js" not in pro
+for label in ['INTRO','DEEP','LIFT','BREAK','PEAK','OUTRO','BUILD 4','DROP','ECHO','WASH','VOCAL HIT']:
+    assert label in simple
+for stem in ['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL']:
+    assert stem in simple
+assert "queueBarAction" in simple
+assert "shared Loop Core" in simple
+print('Unified amphitheater surface contract PASS')
