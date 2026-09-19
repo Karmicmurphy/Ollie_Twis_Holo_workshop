@@ -22,6 +22,11 @@ assert "stopCount++;$(\'.ld-step.now\').forEach" not in engine
 assert "PLAY SET" in simple and "STOP / CLEAR" in simple
 assert "loadPerformancePack" in simple
 assert "PERFORMANCE_ASSETS" in sound
+assert "averagenative/0x808/main/samples/909/kick.wav" in sound
+assert "maximecb/groovie/main/samples/hat_closed_03.wav" in sound
+assert "maximecb/groovie/main/samples/perc_02.wav" in sound
+assert "DEEP:{active:[1,1,0,1,1,1,0,0]" in simple
+assert "HATS:{deep:[0,0,.18,0" in simple
 assert "bounce-kick-01.wav" in sound
 assert "hi-hat-closed-01.wav" in sound
 assert "clap-01.wav" in sound
