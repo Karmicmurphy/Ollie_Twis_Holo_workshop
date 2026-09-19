@@ -5,8 +5,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const uid=()=>`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const PAD_NAMES=['KICK','SNARE','HAT','OPEN','CLAP','TOM','LOW TOM','FX','BASS','BASS 2','SUB','PLUCK','CHORD','LEAD','NOISE','RIDE'];
 const state={
-  ctx:null, master:null, filter:null, comp:null, delay:null, streamDest:null,
-  bpm:100, playing:false, origin:0, step:0, worker:null, scheduledUntil:0, lookAhead:.14,
+  ctx:null, master:null, filter:null, comp:null, delay:null, delayFeedback:null, delayWet:null, analyser:null, meterBuffer:null, streamDest:null,
+  bpm:100, playing:false, origin:0, step:0, worker:null, scheduledUntil:0, lookAhead:.14, tickCount:0, startCount:0, stopCount:0, barActions:[],
   pattern:Array.from({length:16},()=>Array(16).fill(0)), ratchets:Array.from({length:16},()=>Array(16).fill(1)),
   padBuffers:Array(16).fill(null), padMeta:Array(16).fill(null), padNames:[...PAD_NAMES],
   loops:Array.from({length:8},()=>({id:uid(),buffer:null,source:null,playing:false,recording:false,armed:false,bars:4,volume:.9,mute:false,solo:false,undo:null,startTime:0})),
@@ -15,6 +15,23 @@ const state={
   masterVolume:.9, scene:0, scenes:[null,null,null,null], tap:[], latencyOffsetMs:Number(localStorage.twisLoopOffsetMs||0),
   mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false, storagePersistent:false
 };
+const core=window.TWIS_LOOP_CORE;
+if(!core)throw new Error('TWIS Loop Core must load before Loop Deck V2');
+let transportClock=null;
+const loopMachines=Array.from({length:8},()=>new core.LoopStateMachine('EMPTY'));
+function clock(){if(!transportClock)transportClock=new core.TransportClock({bpm:state.bpm});return transportClock;}
+function alignLoopMachine(i){
+  const l=state.loops[i],m=loopMachines[i];
+  if(l.buffer&&m.state==='EMPTY'){m.transition('LOAD');m.transition('LOAD_OK');}
+  if(!l.buffer&&['STOPPED','PLAYING'].includes(m.state)){try{m.transition('CLEAR');}catch{}}
+  l.machineState=m.state;
+  return m;
+}
+function loopTransition(i,event,meta={}){
+  const m=alignLoopMachine(i);
+  try{const next=m.transition(event,{...meta,hasAsset:!!state.loops[i].buffer});state.loops[i].machineState=next;return next;}
+  catch(e){console.warn('Loop state transition rejected',i,event,m.state,e);return m.state;}
+}
 let persistRequested=false;
 function status(text){const el=$('#ldStatus');if(el)el.textContent=text;}
 async function protectStorage(){
@@ -29,10 +46,14 @@ function audio(){
   state.master=state.ctx.createGain(); state.master.gain.value=state.masterVolume;
   state.filter=state.ctx.createBiquadFilter(); state.filter.type='lowpass'; state.filter.frequency.value=18000; state.filter.Q.value=.7;
   state.delay=state.ctx.createDelay(2); state.delay.delayTime.value=.125;
-  const fb=state.ctx.createGain();fb.gain.value=0;state.delay.connect(fb);fb.connect(state.delay);
+  state.delayFeedback=state.ctx.createGain();state.delayFeedback.gain.value=0;state.delay.connect(state.delayFeedback);state.delayFeedback.connect(state.delay);
+  state.delayWet=state.ctx.createGain();state.delayWet.gain.value=0;state.delay.connect(state.delayWet);
   state.comp=state.ctx.createDynamicsCompressor();state.comp.threshold.value=-12;state.comp.ratio.value=4;state.comp.attack.value=.003;state.comp.release.value=.18;
+  state.analyser=state.ctx.createAnalyser();state.analyser.fftSize=256;state.meterBuffer=new Float32Array(state.analyser.fftSize);
   state.streamDest=state.ctx.createMediaStreamDestination();
-  state.master.connect(state.filter);state.filter.connect(state.comp);state.comp.connect(state.ctx.destination);state.comp.connect(state.streamDest);
+  state.master.connect(state.filter);state.filter.connect(state.comp);
+  state.master.connect(state.delay);state.delayWet.connect(state.comp);
+  state.comp.connect(state.analyser);state.analyser.connect(state.ctx.destination);state.comp.connect(state.streamDest);
   initClock(); initRecorderWorklet();
   return state.ctx;
 }
@@ -53,23 +74,31 @@ async function initRecorderWorklet(){
     state.recorderNode.port.onmessage=handleRecorderMessage;
   }catch(e){console.warn(e);status('AudioWorklet recorder unavailable; browser recording fallback only.');}
 }
-function stepSec(){return 60/state.bpm/4;}
-function barSec(bars=1){return 60/state.bpm*4*bars;}
-function transportPos(t=audio().currentTime){return Math.max(0,t-state.origin);}
-function nextGrid(kind='bar',now=audio().currentTime){
-  if(!state.playing)return now+.03;
-  const size=kind==='16n'?stepSec():kind==='beat'?60/state.bpm:barSec(1);
-  const p=transportPos(now),n=Math.ceil((p+.002)/size)*size;return state.origin+n;
+function stepSec(){clock().setBpm(state.bpm,state.ctx?.currentTime);return clock().stepSeconds();}
+function barSec(bars=1){clock().setBpm(state.bpm,state.ctx?.currentTime);return clock().barSeconds(bars);}
+function transportPos(t=audio().currentTime){return clock().transportSeconds(t);}
+function nextGrid(kind='bar',now=audio().currentTime){return clock().nextBoundary(kind,now);}
+function queueBarAction(fn){if(typeof fn==='function')state.barActions.push(fn);}
+async function play(){
+  await unlock();if(state.playing)return;
+  state.playing=true;state.origin=audio().currentTime+.06;state.scheduledUntil=state.origin;state.step=0;
+  clock().setBpm(state.bpm,audio().currentTime);clock().start(state.origin,0);
+  state.startCount++;state.worker.postMessage('start');$('#ldPlay').textContent='■';
 }
-function play(){unlock();if(state.playing)return;state.playing=true;state.origin=audio().currentTime+.06;state.scheduledUntil=state.origin;state.step=0;state.worker.postMessage('start');$('#ldPlay').textContent='■';}
-function stop(){state.playing=false;state.worker?.postMessage('stop');$('#ldPlay').textContent='▶';$$('.ld-step.now').forEach(x=>x.classList.remove('now'));}
+function stop(){
+  if(!state.playing&&state.loops.every(l=>!l.playing))return;
+  state.playing=false;clock().stop(state.ctx?.currentTime||0);state.worker?.postMessage('stop');
+  state.loops.forEach((l,i)=>{if(l.playing){try{l.source?.stop(state.ctx?.currentTime+.01);}catch{}l.playing=false;loopTransition(i,'STOP');}});
+  state.stopCount++;$('#ldPlay').textContent='▶';$('.ld-step.now').forEach(x=>x.classList.remove('now'));renderLoops();
+}
 function scheduleAhead(){
   if(!state.playing)return;const c=audio(),limit=c.currentTime+state.lookAhead;
   while(state.scheduledUntil<limit){
     const s=state.step%16,t=state.scheduledUntil;
+    if(s===0&&state.barActions.length){const actions=state.barActions.splice(0);for(const fn of actions){try{fn(t);}catch(e){console.warn('bar action failed',e);}}}
     for(let p=0;p<16;p++){const v=state.pattern[p][s];if(v){const r=state.ratchets[p][s]||1;for(let k=0;k<r;k++)triggerPad(p,v,t+(stepSec()/r)*k);}}
     const uiStep=s;setTimeout(()=>paintStep(uiStep),Math.max(0,(t-c.currentTime)*1000));
-    state.scheduledUntil+=stepSec();state.step=(state.step+1)%16;
+    state.scheduledUntil+=stepSec();state.step=(state.step+1)%16;state.tickCount++;
   }
 }
 function paintStep(s){$$('.ld-step.now').forEach(x=>x.classList.remove('now'));$$(`.ld-step[data-step='${s}']`).forEach(x=>x.classList.add('now'));}
@@ -85,18 +114,20 @@ async function ensureMic(){await unlock();if(state.micStream)return true;try{sta
 function handleRecorderMessage(e){const d=e.data;if(d.type==='complete'&&state.pendingCapture){const p=state.pendingCapture;state.pendingCapture=null;finishCapture(p,d);}}
 function bufferFromWorklet(msg){if(!msg.frames||!msg.channels?.length)return null;const c=audio(),out=c.createBuffer(msg.channels.length,msg.frames,msg.sampleRate);msg.channels.forEach((ab,i)=>out.copyToChannel(new Float32Array(ab),i));return out;}
 function mixBuffers(a,b){const c=audio(),len=Math.max(a.length,b.length),ch=Math.max(a.numberOfChannels,b.numberOfChannels),o=c.createBuffer(ch,len,a.sampleRate);for(let k=0;k<ch;k++){const d=o.getChannelData(k),aa=a.getChannelData(Math.min(k,a.numberOfChannels-1)),bb=b.getChannelData(Math.min(k,b.numberOfChannels-1));for(let i=0;i<len;i++)d[i]=clamp((aa[i]||0)+(bb[i]||0),-1,1);}return o;}
-async function finishCapture(p,msg){let buf=bufferFromWorklet(msg);const l=state.loops[p.index];l.recording=false;l.armed=false;if(!buf){renderLoops();return status('No audio captured.');}
+async function finishCapture(p,msg){let buf=bufferFromWorklet(msg);const l=state.loops[p.index];l.recording=false;l.armed=false;if(!buf){loopTransition(p.index,'FAIL',{error:'no-audio'});renderLoops();return status('No audio captured.');}
   const trim=Math.max(0,Math.round((state.latencyOffsetMs/1000)*buf.sampleRate));if(trim&&trim<buf.length-128)buf=microSlice(buf,trim/buf.sampleRate,buf.duration);
   if(p.overdub&&l.buffer){l.undo=l.buffer;buf=mixBuffers(l.buffer,buf);}else l.undo=l.buffer;
-  l.buffer=buf;renderLoops();await persistLoop(p.index);status(`Loop ${p.index+1} captured · ${buf.duration.toFixed(2)}s${p.overdub?' · overdubbed':''}`);startLoop(p.index,true);
+  l.buffer=buf;
+  loopTransition(p.index,p.overdub?'OVERDUB_DONE':'RECORD_DONE');
+  renderLoops();await persistLoop(p.index);status(`Loop ${p.index+1} captured · ${buf.duration.toFixed(2)}s${p.overdub?' · overdubbed':''}`);startLoop(p.index,true);
 }
-async function toggleRecord(i){if(!(await ensureMic()))return;const l=state.loops[i];if(l.recording||l.armed){cancelRecord(i);return;}if(state.recordTarget>=0)return status('One loop can record at a time.');if(!state.playing)play();const start=nextGrid('bar'),free=l.bars==='FREE',stopAt=free?null:start+barSec(l.bars);state.recordTarget=i;l.armed=true;renderLoops();const param=state.recorderNode?.parameters.get('recording');if(!param)return status('Frame recorder unavailable on this browser.');param.cancelScheduledValues(audio().currentTime);param.setValueAtTime(0,audio().currentTime);param.setValueAtTime(1,start);if(stopAt)param.setValueAtTime(0,stopAt);state.pendingCapture={index:i,start,stopAt,overdub:!!l.buffer};l.recording=true;status(`Loop ${i+1} armed · starts next bar${free?' · tap REC to stop':` · ${l.bars} bar${l.bars>1?'s':''}`}`);renderLoops();if(stopAt)setTimeout(()=>{state.recordTarget=-1;},Math.max(0,(stopAt-audio().currentTime)*1000+80));else state.recordTarget=i;}
-function cancelRecord(i){const l=state.loops[i],p=state.recorderNode?.parameters.get('recording');if(p){p.cancelScheduledValues(audio().currentTime);p.setValueAtTime(0,audio().currentTime+.005);}state.recordTarget=-1;l.armed=false;l.recording=false;renderLoops();}
+async function toggleRecord(i){if(!(await ensureMic()))return;const l=state.loops[i];if(l.recording||l.armed){cancelRecord(i);return;}if(state.recordTarget>=0)return status('One loop can record at a time.');if(!state.playing)play();const start=nextGrid('bar'),free=l.bars==='FREE',stopAt=free?null:start+barSec(l.bars);state.recordTarget=i;l.armed=true;loopTransition(i,l.buffer?'ARM_OVERDUB':'ARM_RECORD');renderLoops();const param=state.recorderNode?.parameters.get('recording');if(!param)return status('Frame recorder unavailable on this browser.');param.cancelScheduledValues(audio().currentTime);param.setValueAtTime(0,audio().currentTime);param.setValueAtTime(1,start);if(stopAt)param.setValueAtTime(0,stopAt);state.pendingCapture={index:i,start,stopAt,overdub:!!l.buffer};l.recording=true;setTimeout(()=>loopTransition(i,l.buffer?'OVERDUB_START':'RECORD_START'),Math.max(0,(start-audio().currentTime)*1000));status(`Loop ${i+1} armed · starts next bar${free?' · tap REC to stop':` · ${l.bars} bar${l.bars>1?'s':''}`}`);renderLoops();if(stopAt)setTimeout(()=>{state.recordTarget=-1;},Math.max(0,(stopAt-audio().currentTime)*1000+80));else state.recordTarget=i;}
+function cancelRecord(i){const l=state.loops[i],p=state.recorderNode?.parameters.get('recording');if(p){p.cancelScheduledValues(audio().currentTime);p.setValueAtTime(0,audio().currentTime+.005);}state.recordTarget=-1;l.armed=false;l.recording=false;loopTransition(i,'CANCEL');renderLoops();}
 function cycleBars(i){const vals=[1,2,4,8,16,'FREE'],l=state.loops[i],n=vals[(vals.indexOf(l.bars)+1)%vals.length];l.bars=n;renderLoops();saveMeta();}
-function startLoop(i,quantized=false){const l=state.loops[i];if(!l.buffer)return;try{l.source?.stop();}catch{}const when=state.playing?(quantized?nextGrid('bar'):audio().currentTime+.015):audio().currentTime+.015;let offset=0;if(state.playing&&!quantized){const phase=transportPos(when)%l.buffer.duration;offset=phase;}l.source=playBuffer(l.buffer,when,true,1,offset,l.mute?0:l.volume);l.playing=true;l.startTime=when-offset;renderLoops();animateLoops();}
-function toggleLoop(i){const l=state.loops[i];if(!l.buffer)return status(`Loop ${i+1} is empty.`);if(l.playing){try{l.source.stop(nextGrid('beat'));}catch{}l.playing=false;renderLoops();}else startLoop(i,true);}
-function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;l.buffer=null;l.playing=false;deleteLoopFile(i);renderLoops();}
-function undoLoop(i){const l=state.loops[i];if(!l.undo)return;const t=l.buffer;l.buffer=l.undo;l.undo=t;persistLoop(i);renderLoops();}
+function startLoop(i,quantized=false){const l=state.loops[i];if(!l.buffer)return;try{l.source?.stop();}catch{}const when=state.playing?(quantized?nextGrid('bar'):audio().currentTime+.015):audio().currentTime+.015;let offset=0;if(state.playing&&!quantized){const phase=transportPos(when)%l.buffer.duration;offset=phase;}l.source=playBuffer(l.buffer,when,true,1,offset,l.mute?0:l.volume);if(['EMPTY','ERROR'].includes(alignLoopMachine(i).state))alignLoopMachine(i);if(alignLoopMachine(i).state==='STOPPED')loopTransition(i,'QUEUE_PLAY');if(alignLoopMachine(i).state==='PLAY_QUEUED')loopTransition(i,'PLAY');l.playing=true;l.startTime=when-offset;renderLoops();animateLoops();}
+function toggleLoop(i){const l=state.loops[i];if(!l.buffer)return status(`Loop ${i+1} is empty.`);if(l.playing){try{l.source.stop(nextGrid('beat'));}catch{}l.playing=false;loopTransition(i,'STOP');renderLoops();}else startLoop(i,true);}
+function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;l.buffer=null;l.playing=false;loopTransition(i,'CLEAR');deleteLoopFile(i);renderLoops();}
+function undoLoop(i){const l=state.loops[i];if(!l.undo)return;loopTransition(i,'UNDO');const t=l.buffer;l.buffer=l.undo;l.undo=t;loopTransition(i,'UNDO_DONE',{playing:l.playing});persistLoop(i);renderLoops();}
 function animateLoops(){let any=false;state.loops.forEach((l,i)=>{if(l.playing&&l.buffer){any=true;const p=((audio().currentTime-l.startTime)%l.buffer.duration)/l.buffer.duration;const el=$(`.ld-loop[data-loop='${i}'] .ld-progress span`);if(el)el.style.width=`${p*100}%`;}});if(any)requestAnimationFrame(animateLoops);}
 function renderLoops(){const el=$('#ldLoops');if(!el)return;el.innerHTML=state.loops.map((l,i)=>`<div class="ld-loop ${l.recording?'rec':''} ${l.playing?'playing':''}" data-loop="${i}"><div class="ld-loop-head"><button data-bars="${i}" class="ld-link">LOOP ${i+1}</button><button data-bars="${i}" class="ld-link">${l.bars==='FREE'?'FREE':l.bars+' BAR'}</button></div><div class="ld-progress"><span></span></div><div class="ld-loop-actions"><button data-rec="${i}">${l.recording||l.armed?'■ STOP':'● REC'}</button><button data-lplay="${i}">${l.playing?'■':'▶'}</button><button data-undo="${i}" ${l.undo?'':'disabled'}>UNDO</button><button data-clearloop="${i}">CLR</button></div></div>`).join('');$$('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));$$('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));$$('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));$$('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));$$('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));}
 function renderPads(){const el=$('#ldPads');if(!el)return;el.innerHTML=state.padNames.map((n,i)=>`<button class="ld-pad ${state.padBuffers[i]?'loaded':''}" data-pad="${i}"><b>${i+1}</b><small>${state.padMeta[i]?.label||n}</small></button>`).join('');$$('.ld-pad').forEach(b=>{b.onpointerdown=e=>{unlock();triggerPad(+b.dataset.pad,clamp(e.pressure||.82,.2,1));};b.oncontextmenu=e=>e.preventDefault();});}
@@ -126,13 +157,13 @@ async function restoreAudio(){await unlock();for(let i=0;i<8;i++){const ab=await
 function sceneData(){return {bpm:state.bpm,pattern:state.pattern,ratchets:state.ratchets,loopPlay:state.loops.map(x=>x.playing)};}
 function saveScene(i){state.scenes[i]=JSON.parse(JSON.stringify(sceneData()));localStorage.setItem(`twisLoopScene${i}`,JSON.stringify(state.scenes[i]));status(`Scene ${i+1} saved.`);}
 function loadScene(i){let s=state.scenes[i];if(!s){try{s=JSON.parse(localStorage.getItem(`twisLoopScene${i}`));}catch{}}if(!s)return saveScene(i);state.bpm=s.bpm||state.bpm;state.pattern=s.pattern||state.pattern;state.ratchets=s.ratchets||state.ratchets;$('#ldBpm').value=state.bpm;renderSeq();state.loops.forEach((l,k)=>{if(s.loopPlay?.[k]&&!l.playing&&l.buffer)startLoop(k,true);if(!s.loopPlay?.[k]&&l.playing)toggleLoop(k);});state.scene=i;$$('.ld-scene').forEach((b,k)=>b.classList.toggle('active',k===i));status(`Scene ${i+1} launched.`);}
-function setBpm(v){state.bpm=clamp(Math.round(Number(v)||100),40,240);$('#ldBpm').value=state.bpm;saveMeta();}
+function setBpm(v){state.bpm=clamp(Math.round(Number(v)||100),40,240);clock().setBpm(state.bpm,state.ctx?.currentTime);$('#ldBpm').value=state.bpm;saveMeta();}
 function tapTempo(){const n=performance.now();state.tap=state.tap.filter(t=>n-t<2500);state.tap.push(n);if(state.tap.length>1){const gaps=state.tap.slice(1).map((t,i)=>t-state.tap[i]),avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;setBpm(60000/avg);}if(navigator.vibrate)navigator.vibrate(8);}
 function saveMeta(){localStorage.twisLoopDeckV2=JSON.stringify({bpm:state.bpm,pattern:state.pattern,ratchets:state.ratchets,bars:state.loops.map(l=>l.bars),latencyOffsetMs:state.latencyOffsetMs,syncMode:state.syncMode});}
 function loadMeta(){try{const m=JSON.parse(localStorage.twisLoopDeckV2||'{}');if(m.bpm)state.bpm=m.bpm;if(m.pattern)state.pattern=m.pattern;if(m.ratchets)state.ratchets=m.ratchets;if(m.bars)m.bars.forEach((v,i)=>state.loops[i].bars=v);if(Number.isFinite(m.latencyOffsetMs))state.latencyOffsetMs=m.latencyOffsetMs;if(m.syncMode)state.syncMode=m.syncMode;}catch{}}
 function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);}
 function captureMix(){if(state.mixRecorder){state.mixRecorder.stop();return;}try{state.mixChunks=[];state.mixRecorder=new MediaRecorder(state.streamDest.stream);state.mixRecorder.ondataavailable=e=>e.data.size&&state.mixChunks.push(e.data);state.mixRecorder.onstop=()=>{const blob=new Blob(state.mixChunks,{type:state.mixRecorder.mimeType});download(blob,`twis-loop-deck-${Date.now()}.webm`);state.mixRecorder=null;$('#ldMixRec').textContent='CAPTURE MIX';status('Mix captured locally.');};state.mixRecorder.start();$('#ldMixRec').textContent='STOP + EXPORT';status('Capturing master mix…');}catch{status('Mix capture unsupported here.');}}
-function stutter(div,on){if(!state.delay)return;const fb=state.delay.connections?.[0];state.delay.delayTime.setTargetAtTime((60/state.bpm)*(4/div),audio().currentTime,.01);/* wet send is momentary */ if(on){state.filter.frequency.setTargetAtTime(4200,audio().currentTime,.01);}else state.filter.frequency.setTargetAtTime(Number($('#ldCutoff')?.value||18000),audio().currentTime,.04);}
+function stutter(div,on){if(!state.delay)return;const now=audio().currentTime;state.delay.delayTime.setTargetAtTime((60/state.bpm)*(4/div),now,.01);state.delayFeedback?.gain.setTargetAtTime(on?.34:0,now,.02);state.delayWet?.gain.setTargetAtTime(on?.28:0,now,.02);if(on){state.filter.frequency.setTargetAtTime(4200,now,.01);}else state.filter.frequency.setTargetAtTime(Number($('#ldCutoff')?.value||18000),now,.04);}
 async function midiEnable(){if(!navigator.requestMIDIAccess)return status('Web MIDI is not available in this browser.');try{state.midi=await navigator.requestMIDIAccess();for(const input of state.midi.inputs.values())input.onmidimessage=e=>{const [st,n,v]=e.data;if((st&0xf0)===0x90&&v){const pad=n-36;if(pad>=0&&pad<16)triggerPad(pad,v/127);}if((st&0xf0)===0xb0&&n===1){const hz=120*Math.pow(18000/120,v/127);state.filter.frequency.setTargetAtTime(hz,audio().currentTime,.01);$('#ldCutoff').value=hz;}};status('MIDI enabled · notes 36–51 → pads · mod wheel → filter.');}catch{status('MIDI permission not granted.');}}
 function buildUI(){if($('#twisLoopDeck'))return;const host=document.createElement('div');host.id='twisLoopDeck';host.className='twis-loopdeck';host.innerHTML=`<div class="ld-top"><div class="ld-brand">TWIS LOOP DECK <small>V2 · SALVAGE ENGINE</small></div><div class="ld-transport"><button id="ldPlay" class="ld-btn ld-play">▶</button><div><input id="ldBpm" class="ld-bpm" type="number" min="40" max="240" value="${state.bpm}"><div class="ld-mini">BPM</div></div><button id="ldTap" class="ld-btn">TAP</button></div><button id="ldClose" class="ld-close">×</button></div><div class="ld-body">
 <div class="ld-page active" data-page="loop"><div class="ld-section"><h3>LIVE LOOPS · QUANTIZED + PHASE LOCKED</h3><div class="ld-toolbar"><button id="ldMicEnable" class="ld-btn primary">ENABLE MIC</button><button id="ldMixRec" class="ld-btn">CAPTURE MIX</button><button id="ldMidi" class="ld-btn">MIDI</button></div><div class="ld-scenes">${[0,1,2,3].map(i=>`<button class="ld-scene ${i===0?'active':''}" data-scene="${i}">S${i+1}</button>`).join('')}</div><div class="ld-loops" id="ldLoops"></div><div class="ld-mixrow"><span>REC OFFSET</span><input id="ldOffset" type="range" min="0" max="250" step="1" value="${state.latencyOffsetMs}"><span id="ldOffsetV">${state.latencyOffsetMs}ms</span></div></div></div>
@@ -153,6 +184,32 @@ function bind(){
   $$('[data-stutter]').forEach(b=>{b.onpointerdown=()=>stutter(+b.dataset.stutter,true);b.onpointerup=b.onpointercancel=()=>stutter(+b.dataset.stutter,false);});
 }
 function formatTime(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
-loadMeta();
-window.TWIS_LOOP_DECK={open:async()=>{buildUI();$('#ldBpm').value=state.bpm;setTimeout(()=>restoreAudio().catch(()=>{}),100);},state,analyzeLocal};
+function outputPeak(){
+  if(!state.analyser||!state.meterBuffer)return 0;
+  state.analyser.getFloatTimeDomainData(state.meterBuffer);
+  let p=0;for(let i=0;i<state.meterBuffer.length;i++)p=Math.max(p,Math.abs(state.meterBuffer[i]));return p;
+}
+function setEcho(on){
+  const now=audio().currentTime;state.delay.delayTime.setTargetAtTime(60/state.bpm*.375,now,.02);
+  state.delayFeedback.gain.setTargetAtTime(on?.32:0,now,.03);state.delayWet.gain.setTargetAtTime(on?.24:0,now,.03);
+}
+function setWash(on){
+  const now=audio().currentTime;state.filter.frequency.setTargetAtTime(on?3200:18000,now,.08);
+  state.filter.Q.setTargetAtTime(on?1.6:.7,now,.08);state.delayFeedback.gain.setTargetAtTime(on?.2:0,now,.05);state.delayWet.gain.setTargetAtTime(on?.18:0,now,.05);
+}
+function stopAll(){stop();}
+function health(){
+  return {
+    version:'loop-core-1',playing:state.playing,contextState:state.ctx?.state||'not-started',
+    bpm:state.bpm,step:state.step,tickCount:state.tickCount,startCount:state.startCount,stopCount:state.stopCount,
+    peak:outputPeak(),transport:clock().snapshot(state.ctx?.currentTime||0),
+    loops:state.loops.map((l,i)=>({state:alignLoopMachine(i).state,playing:l.playing,hasBuffer:!!l.buffer,recording:l.recording,armed:l.armed}))
+  };
+}
+loadMeta();clock().setBpm(state.bpm);
+window.TWIS_LOOP_DECK={
+  open:async()=>{buildUI();$('#ldBpm').value=state.bpm;setTimeout(()=>restoreAudio().catch(()=>{}),100);},
+  state,analyzeLocal,health,
+  commands:{play,stop:stopAll,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
+};
 })();
