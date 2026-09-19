@@ -61,11 +61,10 @@ const PERFORMANCE_ROLE_META=[
 let performancePackPromise=null;
 const PERFORMANCE_ASSETS={
   // Salvaged from permissive/CC0 donor libraries; see docs/TWIS_SONIC_SALVAGE_2026-09-19.md.
-  0:'https://raw.githubusercontent.com/averagenative/0x808/main/samples/909/kick.wav',
-  2:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/hat_closed_03.wav',
-  3:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/perc_02.wav',
-  6:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/crash_01.wav',
-  7:'https://raw.githubusercontent.com/n33kos/kokoro-voices/main/samples/am_ash.wav'
+  0:'./assets/samples/twis/909-kick.wav',
+  2:'./assets/samples/twis/hat-closed-03.wav',
+  3:'./assets/samples/twis/perc-02.wav',
+  6:'./assets/samples/twis/crash-01.wav'
 };
 async function fetchDecode(url){
   const c=ensureCtx();if(!c)return null;
@@ -91,7 +90,7 @@ async function loadPerformancePack(){
   });
   const results=await Promise.all(jobs);
   const loaded=results.filter(Boolean).length;
-  s.sonicPackState=loaded>=4?'SAMPLED':'HYBRID';
+  s.sonicPackState=loaded===results.length?'SAMPLED':'HYBRID';
   status(loaded>=4?'Performance pack online · sampled kick/hats/perc/FX/voice + tonal engine.':'Performance pack running hybrid fallback · tonal engine remains active.');
   paintPads();
   return {loaded,failed:results.length-loaded,state:s.sonicPackState};
