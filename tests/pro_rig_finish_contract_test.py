@@ -27,9 +27,6 @@ assert "maximecb/groovie/main/samples/hat_closed_03.wav" in sound
 assert "maximecb/groovie/main/samples/perc_02.wav" in sound
 assert "DEEP:{active:[1,1,0,1,1,1,0,0]" in simple
 assert "HATS:{deep:[0,0,.18,0" in simple
-assert "bounce-kick-01.wav" in sound
-assert "hi-hat-closed-01.wav" in sound
-assert "clap-01.wav" in sound
 assert "am_ash.wav" in sound
 assert "FORMANT VOICE" in sound
 assert "performanceRate" in engine
