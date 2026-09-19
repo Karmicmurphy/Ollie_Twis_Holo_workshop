@@ -5,12 +5,12 @@ const active={KICK:1,BASS:1,PERC:1,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:0,FX:1};
 const roots={C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11};
 const scales={MINOR:[0,2,3,5,7,8,10],DORIAN:[0,2,3,5,7,9,10],PHRYGIAN:[0,1,3,5,7,8,10]};
 const sampleURL={
- kick:'https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/kicks/bounce-kick-01.wav',
- clap:'https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/claps/clap-01.wav',
- hat:'https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/hi-hats/hi-hat-closed-01.wav',
- openhat:'https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/open-hats/open-hat-01.wav',
- impact:'https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/fx/fx-cymbal.wav',
- vocal:'https://cdn.jsdelivr.net/gh/n33kos/kokoro-voices@main/samples/am_ash.wav'
+ kick:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/kicks/bounce-kick-01.wav',
+ clap:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/claps/clap-01.wav',
+ hat:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/hi-hats/hi-hat-closed-01.wav',
+ openhat:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/open-hats/open-hat-01.wav',
+ impact:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/fx/fx-cymbal.wav',
+ vocal:'https://raw.githubusercontent.com/n33kos/kokoro-voices/main/samples/am_ash.wav'
 };
 const scenes={
  INTRO:{KICK:0,BASS:0,PERC:0,CHORDS:1,MELODY:0,ATMOS:1,VOCAL:1,FX:1,e:.22,s:.72,f:.58,t:.15},
@@ -28,6 +28,7 @@ const patterns=[
 ];
 let variation=0, progression=patterns[0].prog.slice(), motif=patterns[0].motif.slice();
 let audio=null,running=false,step=0,bar=0,queuedScene=null,packState='NOT LOADED',loopStarted=false,buildState=null;
+let initPromise=null,startPromise=null,tickCount=0,startCount=0,stopCount=0,lastTickAudioTime=0,maxTickJitter=0;
 
 function say(t){$('#status').textContent=t}
 function diag(){const ctx=audio?Tone.getContext().state.toUpperCase():'NOT STARTED';$('#diag').textContent='AUDIO: '+ctx+' · PACK: '+packState}
@@ -43,7 +44,7 @@ function chordNotes(d,b){
 }
 function setStem(n,on){
  active[n]=on?1:0;
- if(audio?.g[n])audio.g[n].gain.rampTo(on?1:0,.06);
+ if(audio?.gate[n])audio.gate[n].gain.rampTo(on?1:0,.06);
  $('[data-stem="'+n+'"]')?.classList.toggle('on',!!on);
 }
 function applyMacros(){
@@ -68,31 +69,34 @@ function oneShot(player,fallback,time,vel=1,offset=0,dur){
  }
  fallback?.();
 }
-async function initAudio(){
- if(audio)return audio;
+async function buildAudio(){
  await Tone.start();
- const limiter=new Tone.Limiter(-1).toDestination();
+ const runGate=new Tone.Gain(0).toDestination();
+ const meter=new Tone.Meter({channels:2,normalRange:true,smoothing:.82});
+ runGate.connect(meter);
+ const limiter=new Tone.Limiter(-1).connect(runGate);
  const comp=new Tone.Compressor({threshold:-18,ratio:3,attack:.01,release:.16}).connect(limiter);
  const sat=new Tone.Distortion({distortion:.12,wet:.14}).connect(comp);
  const masterLP=new Tone.Filter(17500,'lowpass').connect(sat);
  const dry=new Tone.Gain(.9).connect(masterLP);
  const reverb=new Tone.Reverb({decay:6.5,preDelay:.035,wet:.4}).connect(masterLP);
  const delay=new Tone.FeedbackDelay('8n.',.28).connect(reverb);
- const g={},duckBus={};
- STEMS.forEach(n=>g[n]=new Tone.Gain(active[n]?1:0).connect(dry));
- ['BASS','CHORDS','MELODY','ATMOS'].forEach(n=>duckBus[n]=new Tone.Gain(1).connect(g[n]));
+ const g={},gate={},duckBus={};
+ STEMS.forEach(n=>{g[n]=new Tone.Gain(.78).connect(dry);gate[n]=new Tone.Gain(active[n]?1:0).connect(g[n]);});
+ ['BASS','CHORDS','MELODY','ATMOS'].forEach(n=>duckBus[n]=new Tone.Gain(1).connect(gate[n]));
+ g.CHORDS.connect(new Tone.Gain(.22).connect(reverb));g.MELODY.connect(new Tone.Gain(.3).connect(delay));g.VOCAL.connect(new Tone.Gain(.34).connect(delay));g.FX.connect(new Tone.Gain(.4).connect(reverb));g.PERC.connect(new Tone.Gain(.08).connect(reverb));
 
- const fallbackKick=new Tone.MembraneSynth({pitchDecay:.025,octaves:5,envelope:{attack:.001,decay:.23,sustain:0,release:.04}}).connect(g.KICK);
- const fallbackHat=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.025,sustain:0}}).connect(new Tone.Filter(7500,'highpass').connect(new Tone.Gain(.055).connect(g.PERC)));
- const fallbackClap=new Tone.NoiseSynth({noise:{type:'pink'},envelope:{attack:.001,decay:.08,sustain:0}}).connect(new Tone.Filter(1500,'highpass').connect(new Tone.Gain(.055).connect(reverb)));
+ const fallbackKick=new Tone.MembraneSynth({pitchDecay:.025,octaves:5,envelope:{attack:.001,decay:.23,sustain:0,release:.04}}).connect(gate.KICK);
+ const fallbackHat=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.025,sustain:0}}).connect(new Tone.Filter(7500,'highpass').connect(new Tone.Gain(.055).connect(gate.PERC)));
+ const fallbackClap=new Tone.NoiseSynth({noise:{type:'pink'},envelope:{attack:.001,decay:.08,sustain:0}}).connect(new Tone.Filter(1500,'highpass').connect(new Tone.Gain(.055).connect(gate.PERC)));
 
  const sub=new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:.005,decay:.12,sustain:.58,release:.22}}).connect(new Tone.Gain(.42).connect(duckBus.BASS));
  const bass=new Tone.MonoSynth({oscillator:{type:'fatsawtooth',count:2,spread:9},filter:{Q:1.7,type:'lowpass',rolloff:-24},envelope:{attack:.005,decay:.14,sustain:.25,release:.24},filterEnvelope:{attack:.004,decay:.16,sustain:.16,release:.2,baseFrequency:70,octaves:3.8}}).connect(new Tone.Gain(.24).connect(duckBus.BASS));
 
- const padFilter=new Tone.Filter(4200,'lowpass').connect(new Tone.Gain(.18).connect(reverb));
+ const padFilter=new Tone.Filter(4200,'lowpass').connect(new Tone.Gain(.18).connect(gate.CHORDS));
  const pad=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'fatsawtooth',count:3,spread:22},envelope:{attack:.38,decay:.65,sustain:.42,release:2.5}}).connect(padFilter);
- const pluck=new Tone.PluckSynth({attackNoise:.65,dampening:3800,resonance:.88}).connect(new Tone.Gain(.12).connect(delay));
- const lead=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'fatsine',count:2,spread:8},envelope:{attack:.012,decay:.16,sustain:.08,release:.52}}).connect(new Tone.Gain(.18).connect(delay));
+ const pluck=new Tone.PluckSynth({attackNoise:.65,dampening:3800,resonance:.88}).connect(new Tone.Gain(.12).connect(gate.CHORDS));
+ const lead=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'fatsine',count:2,spread:8},envelope:{attack:.012,decay:.16,sustain:.08,release:.52}}).connect(new Tone.Gain(.18).connect(gate.MELODY));
 
  const atmosNoise=new Tone.Noise('pink');
  const atmosAuto=new Tone.AutoFilter({frequency:.045,baseFrequency:180,octaves:4,depth:.8}).start();
@@ -100,14 +104,14 @@ async function initAudio(){
  const surf=new Tone.LFO({frequency:.07,min:.015,max:.075}).start();surf.connect(atmosGain.gain);
  atmosNoise.connect(new Tone.Filter(1250,'lowpass')).connect(atmosAuto).connect(atmosGain).connect(duckBus.ATMOS);atmosNoise.start();
 
- const vocalFilter=new Tone.Filter({type:'bandpass',frequency:1100,Q:2.2}).connect(new Tone.Gain(.18).connect(delay));
+ const vocalFilter=new Tone.Filter({type:'bandpass',frequency:1100,Q:2.2}).connect(new Tone.Gain(.18).connect(gate.VOCAL));
  const players={};
  Object.entries(sampleURL).forEach(([k,url])=>{
-   players[k]=new Tone.Player({url,fadeIn:.005,fadeOut:.03}).connect(k==='kick'?g.KICK:k==='vocal'?vocalFilter:(k==='impact'?reverb:g.PERC));
+   players[k]=new Tone.Player({url,fadeIn:.005,fadeOut:.03}).connect(k==='kick'?gate.KICK:k==='vocal'?vocalFilter:(k==='impact'?gate.FX:gate.PERC));
    players[k].retrigger=true;
  });
 
- audio={limiter,comp,sat,masterLP,dry,reverb,delay,g,duck:duckBus,fallbackKick,fallbackHat,fallbackClap,sub,bass,pad,padFilter,pluck,lead,atmosNoise,atmosAuto,atmosGain,surf,vocalFilter,players};
+ audio={runGate,meter,limiter,comp,sat,masterLP,dry,reverb,delay,g,gate,duck:duckBus,fallbackKick,fallbackHat,fallbackClap,sub,bass,pad,padFilter,pluck,lead,atmosNoise,atmosAuto,atmosGain,surf,vocalFilter,players};
  packState='LOADING';diag();
  const packLoad=Tone.loaded()
    .then(()=>{packState='READY';diag();return true;})
@@ -121,6 +125,7 @@ async function initAudio(){
  applyMacros();
  return audio;
 }
+async function initAudio(){if(audio)return audio;if(initPromise)return initPromise;initPromise=buildAudio();try{return await initPromise}catch(e){initPromise=null;throw e}}
 function queueScene(name){queuedScene=name;say(name+' queued for next bar.')}
 function commitScene(name){
  const sc=scenes[name];STEMS.forEach(n=>setStem(n,!!sc[n]));
@@ -129,7 +134,7 @@ function commitScene(name){
 }
 function tick(time){
  if(!audio)return;
- const s=step%16;bar=Math.floor(step/16);
+ const s=step%16;bar=Math.floor(step/16);const expected=60/(+$('#bpm').value||124)/4;if(lastTickAudioTime){maxTickJitter=Math.max(maxTickJitter,Math.abs((time-lastTickAudioTime)-expected));}lastTickAudioTime=time;tickCount++;
  if(s===0 && queuedScene){const n=queuedScene;queuedScene=null;Tone.Draw.schedule(()=>commitScene(n),time);}
  const d=progression[bar%progression.length],e=v('energy');
  if(active.KICK && [0,4,8,12].includes(s)){
@@ -162,15 +167,8 @@ function tick(time){
  step++;
  Tone.Draw.schedule(()=>$('#clock').textContent='BAR '+String(bar+1).padStart(2,'0')+' · '+String(s+1).padStart(2,'0'),time);
 }
-async function start(){
- if(running)return;
- say('Starting audio and loading sound pack…');
- await initAudio();
- if(Tone.getContext().state!=='running')await Tone.getContext().resume();
- if(!loopStarted){audio.loop.start(0);loopStarted=true}
- Tone.Transport.start('+0.05');running=true;$('#play').textContent='■ STOP SET';diag();say(packState==='READY'?'DEEP set running with CC0 performance pack.':'DEEP set running · sample fallback is active where needed.');
-}
-function stop(){if(!running)return;Tone.Transport.stop();Tone.Transport.position=0;step=0;bar=0;running=false;$('#play').textContent='▶ PLAY SET';$('#clock').textContent='SILENT';say('Stopped.');diag()}
+async function start(){if(running)return;if(startPromise)return startPromise;$('#play').disabled=true;$('#play').textContent='STARTING…';startPromise=(async()=>{say('Starting audio and loading sound pack…');await initAudio();if(Tone.getContext().state!=='running')await Tone.getContext().resume();if(!loopStarted){audio.loop.start(0);loopStarted=true}audio.runGate.gain.cancelScheduledValues(Tone.now());audio.runGate.gain.rampTo(1,.025);Tone.Transport.start('+0.05');running=true;startCount++;$('#play').textContent='■ STOP SET';diag();say(packState==='READY'?'DEEP set running with CC0 performance pack.':'DEEP set running · sample fallback is active where needed.');})();try{return await startPromise}finally{startPromise=null;$('#play').disabled=false}}
+function stop(){if(!running)return;const now=Tone.now();audio?.runGate?.gain.cancelScheduledValues(now);audio?.runGate?.gain.rampTo(0,.02);Tone.Transport.stop();Tone.Transport.position=0;try{audio?.pad?.releaseAll?.(now);audio?.lead?.releaseAll?.(now);audio?.sub?.triggerRelease?.(now);audio?.bass?.triggerRelease?.(now)}catch{}step=0;bar=0;queuedScene=null;buildState=null;lastTickAudioTime=0;running=false;stopCount++;$('#build').classList.remove('on');$('#play').textContent='▶ PLAY SET';$('#clock').textContent='SILENT';say('Stopped.');diag()}
 async function ensure(){if(!running)await start()}
 async function vocalHit(){await ensure();oneShot(audio.players.vocal,null,Tone.now(),.3,.2,1.2);$('#vocalHit').classList.add('on');setTimeout(()=>$('#vocalHit').classList.remove('on'),300)}
 async function build(){await ensure();buildState={startBar:bar,bars:4};$('#build').classList.add('on');say('4-bar build started.')}
@@ -195,6 +193,7 @@ function ui(){
  $('#loops').onclick=()=>location.href='loop-deck.html';
  applyMacros();diag();
 }
+window.__TWIS_PRO_RIG__={version:'v4-finish',snapshot(){const raw=audio?.meter?.getValue?.()??0;const vals=Array.isArray(raw)?raw:[raw];const level=Math.max(...vals.map(x=>Number.isFinite(x)?x:0));return{running,packState,contextState:audio?Tone.getContext().state:'not-started',transportState:Tone?.Transport?.state||'stopped',step,bar,tickCount,startCount,stopCount,maxTickJitter,level,loadedSamples:audio?Object.values(audio.players).filter(p=>p.loaded).length:0,totalSamples:Object.keys(sampleURL).length,loopStarted,queuedScene,buildActive:!!buildState,active:{...active}}}};
 window.addEventListener('error',e=>{say('Audio/UI error: '+(e.message||'unknown'));$('#diag').textContent+=' · ERROR';});
 window.addEventListener('unhandledrejection',e=>{say('Load/audio error: '+((e.reason&&e.reason.message)||'unknown')+' · fallback should remain usable.');packState='FALLBACK OK';diag();});
 ui();
