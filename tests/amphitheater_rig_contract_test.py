@@ -9,5 +9,6 @@ for label in ['INTRO','DEEP','LIFT','BREAK','PEAK','OUTRO','BUILD 4','DROP','ECH
 for stem in ['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL']:
     assert stem in simple
 assert "queueBarAction" in simple
-assert "shared Loop Core" in simple
+assert "startProfessionalArc" in simple
+assert "kick + bass + pad first" in simple
 print('Unified amphitheater surface contract PASS')
