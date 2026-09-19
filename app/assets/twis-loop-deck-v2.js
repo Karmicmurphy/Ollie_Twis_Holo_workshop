@@ -5,7 +5,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const uid=()=>`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const PAD_NAMES=['KICK','SNARE','HAT','OPEN','CLAP','TOM','LOW TOM','FX','BASS','BASS 2','SUB','PLUCK','CHORD','LEAD','NOISE','RIDE'];
 const state={
-  ctx:null, master:null, filter:null, comp:null, delay:null, delayFeedback:null, delayWet:null, analyser:null, meterBuffer:null, streamDest:null,
+  ctx:null, master:null, filter:null, comp:null, delay:null, delayFeedback:null, delayWet:null, outputGate:null, analyser:null, meterBuffer:null, streamDest:null,
   bpm:100, playing:false, origin:0, step:0, worker:null, scheduledUntil:0, lookAhead:.14, tickCount:0, startCount:0, stopCount:0, barActions:[],
   pattern:Array.from({length:16},()=>Array(16).fill(0)), ratchets:Array.from({length:16},()=>Array(16).fill(1)),
   padBuffers:Array(16).fill(null), padMeta:Array(16).fill(null), padNames:[...PAD_NAMES],
@@ -49,11 +49,12 @@ function audio(){
   state.delayFeedback=state.ctx.createGain();state.delayFeedback.gain.value=0;state.delay.connect(state.delayFeedback);state.delayFeedback.connect(state.delay);
   state.delayWet=state.ctx.createGain();state.delayWet.gain.value=0;state.delay.connect(state.delayWet);
   state.comp=state.ctx.createDynamicsCompressor();state.comp.threshold.value=-12;state.comp.ratio.value=4;state.comp.attack.value=.003;state.comp.release.value=.18;
+  state.outputGate=state.ctx.createGain();state.outputGate.gain.value=0;
   state.analyser=state.ctx.createAnalyser();state.analyser.fftSize=256;state.meterBuffer=new Float32Array(state.analyser.fftSize);
   state.streamDest=state.ctx.createMediaStreamDestination();
   state.master.connect(state.filter);state.filter.connect(state.comp);
   state.master.connect(state.delay);state.delayWet.connect(state.comp);
-  state.comp.connect(state.analyser);state.analyser.connect(state.ctx.destination);state.comp.connect(state.streamDest);
+  state.comp.connect(state.outputGate);state.outputGate.connect(state.analyser);state.analyser.connect(state.ctx.destination);state.comp.connect(state.streamDest);
   initClock(); initRecorderWorklet();
   return state.ctx;
 }
@@ -63,6 +64,7 @@ async function unlock(){
     if(!state.restorePromise)state.restorePromise=restoreAudio().finally(()=>{state.restoreDone=true;state.restorePromise=null;});
     await state.restorePromise;
   }
+  state.outputGate?.gain.setTargetAtTime(1,c.currentTime,.006);
   const base=Math.round((c.baseLatency||0)*1000),out=Math.round((c.outputLatency||0)*1000);
   status(`Audio ready · base ${base} ms · output ${out} ms · rec offset ${state.latencyOffsetMs} ms`);
 }
@@ -94,9 +96,21 @@ async function play(){
   state.startCount++;state.worker.postMessage('start');$('#ldPlay').textContent='■';
 }
 function stop(){
-  if(!state.playing&&state.loops.every(l=>!l.playing))return;
-  state.playing=false;clock().stop(state.ctx?.currentTime||0);state.worker?.postMessage('stop');
-  state.loops.forEach((l,i)=>{if(l.playing){try{l.source?.stop(state.ctx?.currentTime+.01);}catch{}l.playing=false;loopTransition(i,'STOP');}});
+  if(!state.playing&&state.loops.every(l=>!l.playing)&&state.recordTarget<0)return;
+  const now=state.ctx?.currentTime||0;
+  if(state.recordTarget>=0){
+    const i=state.recordTarget;cancelRecord(i);state.pendingCapture=null;
+  }
+  state.barActions.length=0;
+  state.playing=false;clock().stop(now);state.worker?.postMessage('stop');
+  state.loops.forEach((l,i)=>{
+    if(l.playing){
+      try{l.source?.stop(now+.01);}catch{}
+      l.playing=false;
+      if(alignLoopMachine(i).state==='PLAYING')loopTransition(i,'STOP');
+    }
+  });
+  if(state.outputGate)state.outputGate.gain.setTargetAtTime(0,now,.005);
   state.stopCount++;$('#ldPlay').textContent='▶';$('.ld-step.now').forEach(x=>x.classList.remove('now'));renderLoops();
 }
 function scheduleAhead(){
@@ -129,12 +143,12 @@ async function finishCapture(p,msg){let buf=bufferFromWorklet(msg);const l=state
   loopTransition(p.index,p.overdub?'OVERDUB_DONE':'RECORD_DONE');
   renderLoops();await persistLoop(p.index);status(`Loop ${p.index+1} captured · ${buf.duration.toFixed(2)}s${p.overdub?' · overdubbed':''}`);startLoop(p.index,true);
 }
-async function toggleRecord(i){if(!(await ensureMic()))return;const l=state.loops[i];if(l.recording||l.armed){cancelRecord(i);return;}if(state.recordTarget>=0)return status('One loop can record at a time.');if(!state.playing)play();const start=nextGrid('bar'),free=l.bars==='FREE',stopAt=free?null:start+barSec(l.bars);state.recordTarget=i;l.armed=true;loopTransition(i,l.buffer?'ARM_OVERDUB':'ARM_RECORD');renderLoops();const param=state.recorderNode?.parameters.get('recording');if(!param)return status('Frame recorder unavailable on this browser.');param.cancelScheduledValues(audio().currentTime);param.setValueAtTime(0,audio().currentTime);param.setValueAtTime(1,start);if(stopAt)param.setValueAtTime(0,stopAt);state.pendingCapture={index:i,start,stopAt,overdub:!!l.buffer};l.recording=true;setTimeout(()=>loopTransition(i,l.buffer?'OVERDUB_START':'RECORD_START'),Math.max(0,(start-audio().currentTime)*1000));status(`Loop ${i+1} armed · starts next bar${free?' · tap REC to stop':` · ${l.bars} bar${l.bars>1?'s':''}`}`);renderLoops();if(stopAt)setTimeout(()=>{state.recordTarget=-1;},Math.max(0,(stopAt-audio().currentTime)*1000+80));else state.recordTarget=i;}
+async function toggleRecord(i){if(!(await ensureMic()))return;const l=state.loops[i];if(l.recording||l.armed){cancelRecord(i);return;}if(state.recordTarget>=0)return status('One loop can record at a time.');if(!state.playing)play();const start=nextGrid('bar'),free=l.bars==='FREE',stopAt=free?null:start+barSec(l.bars);const param=state.recorderNode?.parameters.get('recording');if(!param){state.recordTarget=-1;l.armed=false;l.recording=false;renderLoops();return status('Frame recorder unavailable on this browser.');}state.recordTarget=i;l.armed=true;loopTransition(i,l.buffer?'ARM_OVERDUB':'ARM_RECORD');renderLoops();param.cancelScheduledValues(audio().currentTime);param.setValueAtTime(0,audio().currentTime);param.setValueAtTime(1,start);if(stopAt)param.setValueAtTime(0,stopAt);state.pendingCapture={index:i,start,stopAt,overdub:!!l.buffer};l.recording=true;setTimeout(()=>loopTransition(i,l.buffer?'OVERDUB_START':'RECORD_START'),Math.max(0,(start-audio().currentTime)*1000));status(`Loop ${i+1} armed · starts next bar${free?' · tap REC to stop':` · ${l.bars} bar${l.bars>1?'s':''}`}`);renderLoops();if(stopAt)setTimeout(()=>{state.recordTarget=-1;},Math.max(0,(stopAt-audio().currentTime)*1000+80));else state.recordTarget=i;}
 function cancelRecord(i){const l=state.loops[i],p=state.recorderNode?.parameters.get('recording');if(p){p.cancelScheduledValues(audio().currentTime);p.setValueAtTime(0,audio().currentTime+.005);}state.recordTarget=-1;l.armed=false;l.recording=false;loopTransition(i,'CANCEL');renderLoops();}
 function cycleBars(i){const vals=[1,2,4,8,16,'FREE'],l=state.loops[i],n=vals[(vals.indexOf(l.bars)+1)%vals.length];l.bars=n;renderLoops();saveMeta();}
 function startLoop(i,quantized=false){const l=state.loops[i];if(!l.buffer)return;try{l.source?.stop();}catch{}const when=state.playing?(quantized?nextGrid('bar'):audio().currentTime+.015):audio().currentTime+.015;let offset=0;if(state.playing&&!quantized){const phase=transportPos(when)%l.buffer.duration;offset=phase;}l.source=playBuffer(l.buffer,when,true,1,offset,l.mute?0:l.volume);if(['EMPTY','ERROR'].includes(alignLoopMachine(i).state))alignLoopMachine(i);if(alignLoopMachine(i).state==='STOPPED')loopTransition(i,'QUEUE_PLAY');if(alignLoopMachine(i).state==='PLAY_QUEUED')loopTransition(i,'PLAY');l.playing=true;l.startTime=when-offset;renderLoops();animateLoops();}
 function toggleLoop(i){const l=state.loops[i];if(!l.buffer)return status(`Loop ${i+1} is empty.`);if(l.playing){try{l.source.stop(nextGrid('beat'));}catch{}l.playing=false;loopTransition(i,'STOP');renderLoops();}else startLoop(i,true);}
-function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;l.buffer=null;l.playing=false;loopTransition(i,'CLEAR');deleteLoopFile(i);renderLoops();}
+function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;if(alignLoopMachine(i).state!=='EMPTY')loopTransition(i,'CLEAR');l.buffer=null;l.playing=false;deleteLoopFile(i);renderLoops();}
 function undoLoop(i){const l=state.loops[i];if(!l.undo)return;loopTransition(i,'UNDO');const t=l.buffer;l.buffer=l.undo;l.undo=t;loopTransition(i,'UNDO_DONE',{playing:l.playing});persistLoop(i);renderLoops();}
 function animateLoops(){let any=false;state.loops.forEach((l,i)=>{if(l.playing&&l.buffer){any=true;const p=((audio().currentTime-l.startTime)%l.buffer.duration)/l.buffer.duration;const el=$(`.ld-loop[data-loop='${i}'] .ld-progress span`);if(el)el.style.width=`${p*100}%`;}});if(any)requestAnimationFrame(animateLoops);}
 function renderLoops(){const el=$('#ldLoops');if(!el)return;el.innerHTML=state.loops.map((l,i)=>`<div class="ld-loop ${l.recording?'rec':''} ${l.playing?'playing':''}" data-loop="${i}"><div class="ld-loop-head"><button data-bars="${i}" class="ld-link">LOOP ${i+1}</button><button data-bars="${i}" class="ld-link">${l.bars==='FREE'?'FREE':l.bars+' BAR'}</button></div><div class="ld-progress"><span></span></div><div class="ld-loop-actions"><button data-rec="${i}">${l.recording||l.armed?'■ STOP':'● REC'}</button><button data-lplay="${i}">${l.playing?'■':'▶'}</button><button data-undo="${i}" ${l.undo?'':'disabled'}>UNDO</button><button data-clearloop="${i}">CLR</button></div></div>`).join('');$$('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));$$('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));$$('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));$$('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));$$('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));}
