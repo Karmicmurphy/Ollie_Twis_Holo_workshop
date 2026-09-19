@@ -60,10 +60,11 @@ const PERFORMANCE_ROLE_META=[
 ];
 let performancePackPromise=null;
 const PERFORMANCE_ASSETS={
-  0:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/kicks/bounce-kick-01.wav',
-  2:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/hi-hats/hi-hat-closed-01.wav',
-  3:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/claps/clap-01.wav',
-  6:'https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/fx/fx-cymbal.wav',
+  // Salvaged from permissive/CC0 donor libraries; see docs/TWIS_SONIC_SALVAGE_2026-09-19.md.
+  0:'https://raw.githubusercontent.com/averagenative/0x808/main/samples/909/kick.wav',
+  2:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/hat_closed_03.wav',
+  3:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/perc_02.wav',
+  6:'https://raw.githubusercontent.com/maximecb/groovie/main/samples/crash_01.wav',
   7:'https://raw.githubusercontent.com/n33kos/kokoro-voices/main/samples/am_ash.wav'
 };
 async function fetchDecode(url){
