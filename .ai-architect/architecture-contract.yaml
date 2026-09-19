@@ -1,0 +1,203 @@
+schema_version: 1.0.0
+revision: 1
+scope: ollie-twis-loop-deck-pro-rig
+architecture_style: modular-monolith-with-ports-and-adapters-at-browser-boundaries
+quality_attributes:
+  - name: realtime-audio-reliability
+    priority: 1
+    rationale: UI, storage, analysis or optional-feature work must not interrupt active audio.
+    measurable_signal: Thirty-minute stress runs complete without audio-engine death, uncontrolled clipping, duplicate scheduling or transport collapse.
+  - name: timing-integrity
+    priority: 2
+    rationale: Recording, overdub, loop launch and scene changes depend on one musical clock.
+    measurable_signal: Quantized boundaries are derived from one AudioContext-backed transport and deterministic transport tests show no accumulated tick drift.
+  - name: recoverability
+    priority: 3
+    rationale: Projects and recorded audio must survive reload and interrupted persistence.
+    measurable_signal: Recovery tests load the latest valid project generation after interrupted or corrupt writes.
+  - name: mobile-efficiency
+    priority: 4
+    rationale: Ordinary Android phones are a primary target.
+    measurable_signal: Core eight-track scenarios stay within documented CPU, memory, storage and interaction budgets on target-device proof.
+  - name: testability
+    priority: 5
+    rationale: Transport, loop state and persistence must be testable without the visual UI.
+    measurable_signal: Core deterministic tests run without DOM rendering and failure injection covers storage, imports and lifecycle events.
+  - name: live-usability
+    priority: 6
+    rationale: Primary controls must be usable during performance without menu digging.
+    measurable_signal: Open, play, perform, stop and recover paths remain available from phone-sized touch surfaces.
+components:
+  - id: transport-core
+    responsibility: Own tempo map, integer musical ticks, beat/bar position, quantization, count-in, metronome and scheduled-action boundaries.
+    owns_data:
+      - transport-state
+    public_interfaces:
+      - transport-api
+  - id: loop-core
+    responsibility: Own loop lifecycle, legal state transitions, track commands, scene commands and coordination with transport and audio.
+    owns_data:
+      - loop-state
+      - track-runtime-state
+    public_interfaces:
+      - loop-command-api
+      - loop-query-api
+  - id: project-core
+    responsibility: Own project manifest semantics, history pointer, migrations and recovery policy independent of storage technology.
+    owns_data:
+      - project-model
+      - undo-redo-history
+    public_interfaces:
+      - project-api
+  - id: audio-engine
+    responsibility: Own the single AudioContext, stable track graph, buses, sends, master processing, metering and sample-accurate source scheduling.
+    owns_data:
+      - audio-runtime-state
+    public_interfaces:
+      - audio-engine-api
+      - audio-node-extension-api
+  - id: recorder-worklet
+    responsibility: Capture loop and master audio on the render thread using bounded allocation.
+    owns_data:
+      - active-recording-pages
+    public_interfaces:
+      - recorder-port
+  - id: import-analysis-worker
+    responsibility: Perform BPM, transient, waveform and region analysis outside the UI and audio-render paths.
+    owns_data: []
+    public_interfaces:
+      - analysis-worker-api
+  - id: project-store
+    responsibility: Persist versioned project metadata and commit generations transactionally.
+    owns_data:
+      - project-generations
+    public_interfaces:
+      - project-store-api
+  - id: asset-store
+    responsibility: Persist immutable recorded/imported audio assets and resolve content-addressed references.
+    owns_data:
+      - audio-assets
+    public_interfaces:
+      - asset-store-api
+  - id: browser-platform-adapter
+    responsibility: Adapt Web Audio, IndexedDB, OPFS, media devices, lifecycle, storage estimates and optional wake-lock behavior.
+    owns_data: []
+    public_interfaces:
+      - audio-runtime-api
+      - metadata-storage-api
+      - asset-storage-api
+      - lifecycle-api
+  - id: instrument-effect-adapters
+    responsibility: Provide Tone.js, sampler, stretch and future instrument/effect implementations without owning transport.
+    owns_data: []
+    public_interfaces:
+      - instrument-effect-api
+  - id: loop-deck-ui
+    responsibility: Provide recording, editing, import, mixer and simple-performance interaction.
+    owns_data: []
+    public_interfaces:
+      - loop-deck-ui
+  - id: pro-rig-ui
+    responsibility: Provide scenes, stems, macros and live-performance interaction over the same Loop Core.
+    owns_data: []
+    public_interfaces:
+      - pro-rig-ui
+external_boundaries:
+  - id: browser-web-audio
+    responsibility: Browser AudioContext, AudioWorklet and media output/input runtime.
+  - id: browser-storage
+    responsibility: IndexedDB and OPFS persistence services supplied by the browser.
+  - id: browser-lifecycle
+    responsibility: Visibility, page lifecycle, media-device and permission events.
+dependency_rules:
+  - source: loop-deck-ui
+    target: loop-core
+    policy: allow-via-interface
+    via_interface: loop-command-api
+    rationale: UI issues commands; it does not mutate engine state directly.
+  - source: pro-rig-ui
+    target: loop-core
+    policy: allow-via-interface
+    via_interface: loop-command-api
+    rationale: Pro Rig is a second surface over the same core.
+  - source: loop-core
+    target: transport-core
+    policy: allow-via-interface
+    via_interface: transport-api
+    rationale: Loop timing must come from the single transport authority.
+  - source: loop-core
+    target: audio-engine
+    policy: allow-via-interface
+    via_interface: audio-engine-api
+    rationale: Loop commands schedule audio through one engine boundary.
+  - source: project-core
+    target: project-store
+    policy: allow-via-interface
+    via_interface: project-store-api
+    rationale: Project semantics must not depend on IndexedDB details.
+  - source: project-core
+    target: asset-store
+    policy: allow-via-interface
+    via_interface: asset-store-api
+    rationale: Project manifests reference assets through stable identifiers.
+  - source: audio-engine
+    target: browser-platform-adapter
+    policy: allow-via-interface
+    via_interface: audio-runtime-api
+    rationale: Browser-specific audio APIs remain behind the platform adapter.
+  - source: project-store
+    target: browser-platform-adapter
+    policy: allow-via-interface
+    via_interface: metadata-storage-api
+    rationale: Metadata persistence is adapted from IndexedDB.
+  - source: asset-store
+    target: browser-platform-adapter
+    policy: allow-via-interface
+    via_interface: asset-storage-api
+    rationale: Binary asset persistence is adapted from OPFS.
+  - source: browser-platform-adapter
+    target: browser-web-audio
+    policy: allow
+    rationale: The platform adapter may use browser audio APIs directly.
+  - source: browser-platform-adapter
+    target: browser-storage
+    policy: allow
+    rationale: The platform adapter may use IndexedDB and OPFS directly.
+  - source: browser-platform-adapter
+    target: browser-lifecycle
+    policy: allow
+    rationale: The platform adapter owns browser lifecycle integration.
+  - source: loop-core
+    target: browser-storage
+    policy: deny
+    rationale: Core loop behavior must not block on storage technology.
+  - source: transport-core
+    target: browser-web-audio
+    policy: deny
+    rationale: Transport math consumes an injected audio-time reading rather than browser globals.
+required_practices:
+  - Use one AudioContext-backed physical time authority and integer musical ticks at 960 PPQN.
+  - Keep the live audio graph structurally stable; bypass effects with parameters or gain rather than graph teardown.
+  - Keep waveform, BPM, transient, hashing and similar expensive analysis outside UI and render-thread critical paths.
+  - Persist project metadata as versioned generations and audio as immutable asset references.
+  - Leave a deterministic regression test or guard for each material bug fixed during migration.
+  - Preserve current Simple Perform, Pro Rig control semantics, OPFS assets and proven browser behavior while extracting boundaries.
+prohibited_practices:
+  - Do not retain Tone.Transport as an independent master clock.
+  - Do not allow Pro Rig and Loop Deck to own separate authoritative audio transports.
+  - Do not access DOM, network or persistence from real-time audio callbacks.
+  - Do not allocate unbounded recording chunks inside the AudioWorklet render callback.
+  - Do not use localStorage as authoritative project/session persistence.
+  - Do not require remote network assets for core looping and playback.
+decision_ids:
+  - ADR-001
+  - ADR-002
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-007
+  - ADR-008
+  - ADR-009
+  - ADR-010
+unresolved_questions: []
