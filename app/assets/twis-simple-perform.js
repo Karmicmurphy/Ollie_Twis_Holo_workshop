@@ -3,7 +3,7 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let installed=false, active=Array(8).fill(false), energy=.52, packName='DEEP MELODIC HOUSE', lastGhostLoop=-1;
 const proMode=new URLSearchParams(location.search).get('mode')==='pro';
-let currentScene='DEEP',echoOn=false,washOn=false,buildBarsLeft=0;
+let currentScene='DEEP',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false;
 const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
 const packs={
  'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,16]},
@@ -63,7 +63,8 @@ function queueScene(name){
 async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
   if(!active.some(Boolean))applySceneNow('DEEP');
-  ensureTransport();
+  await api.play?.();
+  if(!packPrimed){await loadPack(packName,true);packPrimed=true;applySceneNow(currentScene);}
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
   status('SET LIVE · '+currentScene+' · shared Loop Core.');
 }
