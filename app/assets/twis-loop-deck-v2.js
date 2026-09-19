@@ -118,7 +118,7 @@ function scheduleAhead(){
   while(state.scheduledUntil<limit){
     const s=state.step%16,t=state.scheduledUntil;
     if(s===0&&state.barActions.length){const actions=state.barActions.splice(0);for(const fn of actions){try{fn(t);}catch(e){console.warn('bar action failed',e);}}}
-    for(let p=0;p<16;p++){const v=state.pattern[p][s];if(v){const r=state.ratchets[p][s]||1;for(let k=0;k<r;k++)triggerPad(p,v,t+(stepSec()/r)*k);}}
+    const phraseBar=Math.floor(state.tickCount/16);for(let p=0;p<16;p++){const v=state.pattern[p][s];if(v){const r=state.ratchets[p][s]||1;for(let k=0;k<r;k++)triggerPad(p,v,t+(stepSec()/r)*k,{step:s,bar:phraseBar});}}
     const uiStep=s;setTimeout(()=>paintStep(uiStep),Math.max(0,(t-c.currentTime)*1000));
     state.scheduledUntil+=stepSec();state.step=(state.step+1)%16;state.tickCount++;
   }
@@ -130,8 +130,43 @@ function synthTone(t,f,d,v,type='sawtooth'){const c=audio(),o=c.createOscillator
 function synthNoise(t,d,v,hp=1000){const c=audio(),b=c.createBuffer(1,Math.ceil(c.sampleRate*d),c.sampleRate),a=b.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=b;f.type='highpass';f.frequency.value=hp;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);s.connect(f).connect(g).connect(state.master);s.start(t);}
 function builtin(i,t,v=.8){switch(i){case 0:synthKick(t,v);break;case 1:synthNoise(t,.16,v,1200);synthTone(t,180,.08,v*.22,'triangle');break;case 2:synthNoise(t,.045,v*.55,6500);break;case 3:synthNoise(t,.34,v*.45,5200);break;case 4:synthNoise(t,.14,v*.65,1900);break;case 5:synthTone(t,130,.25,v,'sine');break;case 6:synthTone(t,92,.3,v,'triangle');break;case 7:synthNoise(t,.65,v*.3,350);break;case 8:synthTone(t,65.4,.3,v,'sawtooth');break;case 9:synthTone(t,82.4,.3,v,'square');break;case 10:synthTone(t,43.65,.48,v,'sine');break;case 11:synthTone(t,261.6,.19,v,'triangle');break;case 12:[130.8,164.8,196].forEach(f=>synthTone(t,f,.62,v*.3,'triangle'));break;case 13:synthTone(t,392,.3,v,'sawtooth');break;case 14:synthNoise(t,.42,v*.32,180);break;case 15:synthNoise(t,.5,v*.25,7200);}}
 function microSlice(buf,start,end,fade=.004){const c=audio(),sr=buf.sampleRate,s=Math.max(0,Math.floor(start*sr)),e=Math.min(buf.length,Math.ceil(end*sr)),len=Math.max(1,e-s),out=c.createBuffer(buf.numberOfChannels,len,sr),fn=Math.min(Math.floor(sr*fade),Math.floor(len/2));for(let ch=0;ch<buf.numberOfChannels;ch++){const src=buf.getChannelData(ch),dst=out.getChannelData(ch);for(let i=0;i<len;i++){let g=1;if(fn){if(i<fn)g=i/fn;else if(i>=len-fn)g=(len-i-1)/fn;}dst[i]=(src[s+i]||0)*Math.max(0,g);}}return out;}
-function playBuffer(buf,t=audio().currentTime,loop=false,rate=1,offset=0,gain=.9){const c=audio(),s=c.createBufferSource();s.buffer=buf;s.loop=loop;s.playbackRate.value=rate;route(s,gain);s.start(t,offset);return s;}
-function triggerPad(i,v=.85,t=audio().currentTime){const b=$(`.ld-pad[data-pad='${i}']`);if(t<=audio().currentTime+.02){b?.classList.add('hit');setTimeout(()=>b?.classList.remove('hit'),90);}const pb=state.padBuffers[i];if(pb){const meta=state.padMeta[i]||{},rate=meta.sourceBpm&&state.syncMode==='REPITCH'?state.bpm/meta.sourceBpm:1;playBuffer(pb,t,false,rate,0,v);}else builtin(i,t,v);}
+function playBuffer(buf,t=audio().currentTime,loop=false,rate=1,offset=0,gain=.9,pan=0){const c=audio(),s=c.createBufferSource();s.buffer=buf;s.loop=loop;s.playbackRate.value=rate;route(s,gain,pan);s.start(t,offset);return s;}
+function performanceRate(meta,ctx={}){
+  const role=meta?.role;if(!role)return 1;
+  const step=Number(ctx.step)||0,bar=Number(ctx.bar)||0,root=Number(meta.rootMidi)||60;
+  let midi=root;
+  if(role==='BASS'){
+    const roots=[38,34,41,36],rootNow=roots[bar%4];
+    const offsets=[0,0,7,0,0,12,7,0,0,0,7,10,0,12,7,0];
+    midi=rootNow+(offsets[step%16]||0);
+  }else if(role==='PAD'){
+    const roots=[50,46,53,48];midi=roots[bar%4];
+  }else if(role==='MELODY'){
+    const motif=[62,65,69,67,65,62,60,0,62,67,69,72,69,67,65,0];
+    midi=motif[(step+bar*2)%16]||root;
+  }
+  return Math.pow(2,(midi-root)/12);
+}
+function performancePan(meta,ctx={}){
+  if(meta?.role==='HATS')return (Number(ctx.step)%4<2?-.18:.18);
+  if(meta?.role==='PERC')return .12;
+  if(meta?.role==='MELODY')return -.12;
+  if(meta?.role==='FX')return .22;
+  if(meta?.role==='VOCAL')return -.08;
+  return 0;
+}
+function triggerPad(i,v=.85,t=audio().currentTime,ctx={}){
+  const b=$(`.ld-pad[data-pad='${i}']`);
+  if(t<=audio().currentTime+.02){b?.classList.add('hit');setTimeout(()=>b?.classList.remove('hit'),90);}
+  const pb=state.padBuffers[i];
+  if(pb){
+    const meta=state.padMeta[i]||{};
+    let rate=meta.sourceBpm&&state.syncMode==='REPITCH'?state.bpm/meta.sourceBpm:1;
+    if(meta.performance)rate*=performanceRate(meta,ctx);
+    const gain=v*(Number(meta.gain)||1);
+    playBuffer(pb,t,false,rate,0,gain,performancePan(meta,ctx));
+  }else builtin(i,t,v);
+}
 async function ensureMic(){await unlock();if(state.micStream)return true;try{state.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});state.micSource=audio().createMediaStreamSource(state.micStream);await initRecorderWorklet();if(state.recorderNode)state.micSource.connect(state.recorderNode);return true;}catch(e){status('Microphone permission denied or unavailable.');return false;}}
 function handleRecorderMessage(e){const d=e.data;if(d.type==='complete'&&state.pendingCapture){const p=state.pendingCapture;state.pendingCapture=null;finishCapture(p,d);}}
 function bufferFromWorklet(msg){if(!msg.frames||!msg.channels?.length)return null;const c=audio(),out=c.createBuffer(msg.channels.length,msg.frames,msg.sampleRate);msg.channels.forEach((ab,i)=>out.copyToChannel(new Float32Array(ab),i));return out;}
@@ -232,9 +267,9 @@ function stopAll(){stop();}
 function health(){
   return {
     version:'loop-core-1',playing:state.playing,contextState:state.ctx?.state||'not-started',
-    bpm:state.bpm,step:state.step,tickCount:state.tickCount,startCount:state.startCount,stopCount:state.stopCount,
+    bpm:state.bpm,step:state.step,tickCount:state.tickCount,startCount:state.startCount,stopCount:state.stopCount,sonicPackState:state.sonicPackState||'LOCAL',
     peak:outputPeak(),transport:clock().snapshot(state.ctx?.currentTime||0),
-    loops:state.loops.map((l,i)=>({state:alignLoopMachine(i).state,playing:l.playing,hasBuffer:!!l.buffer,recording:l.recording,armed:l.armed}))
+    roles:state.padMeta.slice(0,8).map((m,i)=>({i,role:m?.role||null,label:m?.label||state.padNames[i],sampled:!!m?.sampled,rootMidi:m?.rootMidi||null})),loops:state.loops.map((l,i)=>({state:alignLoopMachine(i).state,playing:l.playing,hasBuffer:!!l.buffer,recording:l.recording,armed:l.armed}))
   };
 }
 loadMeta();clock().setBpm(state.bpm);
