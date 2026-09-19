@@ -5,7 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#05070a">
 <title>TWIS Pro Rig V4</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" onerror="this.onerror=null;this.src='https://unpkg.com/tone@14.8.49/build/Tone.js'"></script>
+<script>
+window.__TWIS_TONE_READY__=new Promise((resolve,reject)=>{
+  const sources=[
+    'https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js',
+    'https://unpkg.com/tone@14.8.49/build/Tone.js'
+  ];
+  const load=i=>{
+    if(i>=sources.length){reject(new Error('Tone.js unavailable from all configured sources'));return;}
+    const s=document.createElement('script');
+    s.src=sources[i];s.async=false;
+    s.onload=()=>resolve(window.Tone);
+    s.onerror=()=>{s.remove();load(i+1);};
+    document.head.appendChild(s);
+  };
+  load(0);
+});
+</script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#05070a;color:#eef5f7;font-family:system-ui,sans-serif}
 body{padding:10px}.rig{max-width:920px;margin:auto;display:grid;gap:10px}.top{display:flex;justify-content:space-between;gap:10px}
@@ -69,6 +85,16 @@ button.on{background:#18315a;border-color:#7f9cff;box-shadow:0 0 14px #496cff44}
   <div class="footer"><button id="loops">LOOPS / IMPORT</button><button id="reset">RESET SET</button></div>
   <div class="note">V4 uses CC0 drum one-shots and a CC0 synthetic voice preview when the network is available, with local synth fallbacks if a sample cannot load. Core audio still runs in the browser and requires no paid API.</div>
 </div>
-<script src="assets/twis-pro-rig-v4.js?v=4-finish"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js?v=20260919-finish",{updateViaCache:"none"}).catch(()=>{}));}</script>
+<script>
+window.__TWIS_TONE_READY__.then(()=>{
+  const s=document.createElement('script');
+  s.src='assets/twis-pro-rig-v4.js?v=4-finish';
+  s.onerror=()=>{document.getElementById('status').textContent='Audio engine failed to load.';};
+  document.body.appendChild(s);
+}).catch(e=>{
+  document.getElementById('status').textContent='Audio runtime unavailable: '+e.message;
+  document.getElementById('diag').textContent='AUDIO: ERROR · PACK: UNAVAILABLE';
+});
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js?v=20260919-finish",{updateViaCache:"none"}).catch(()=>{}));}
+</script>
 </body></html>
