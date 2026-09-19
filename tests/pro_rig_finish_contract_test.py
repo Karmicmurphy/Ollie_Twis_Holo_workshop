@@ -16,7 +16,7 @@ assert "new core.LoopStateMachine" in engine
 assert "setEcho" in engine and "setWash" in engine
 assert "function stopAll(){stop();}" in engine
 assert "outputGate" in engine and "outputGate.gain.setTargetAtTime(0" in engine
-assert "$(\'.ld-step.now\').forEach" in engine
+assert "document.querySelectorAll(\'.ld-step.now\').forEach" in engine
 assert "stopCount++;$(\'.ld-step.now\').forEach" not in engine
 assert "PLAY SET" in simple and "STOP / CLEAR" in simple
 assert sw==sw2
