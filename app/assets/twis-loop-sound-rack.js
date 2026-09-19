@@ -58,7 +58,6 @@ const PERFORMANCE_ROLE_META=[
  {role:'FX',rootMidi:60,gain:.48},
  {role:'VOCAL',rootMidi:60,gain:.52}
 ];
-let performancePackPromise=null;
 const PERFORMANCE_ASSETS={
   // Salvaged from permissive/CC0 donor libraries; see docs/TWIS_SONIC_SALVAGE_2026-09-19.md.
   0:'./assets/samples/twis/909-kick.wav',
@@ -72,8 +71,6 @@ async function fetchDecode(url){
   return c.decodeAudioData((await r.arrayBuffer()).slice(0));
 }
 async function loadPerformancePack(){
-  if(performancePackPromise)return performancePackPromise;
-  performancePackPromise=(async()=>{
   const s=st(),c=ensureCtx();if(!s||!c)return {loaded:0,failed:Object.keys(PERFORMANCE_ASSETS).length};
   s.sonicPackState='LOADING';
   for(let i=0;i<8;i++){
@@ -94,8 +91,6 @@ async function loadPerformancePack(){
   status(loaded>=4?'Performance pack online · sampled kick/hats/perc/FX/voice + tonal engine.':'Performance pack running hybrid fallback · tonal engine remains active.');
   paintPads();
   return {loaded,failed:results.length-loaded,state:s.sonicPackState};
-  })().catch(e=>{performancePackPromise=null;throw e;});
-  return performancePackPromise;
 }
 function padLabel(i,label){const s=st();if(!s)return;s.padNames[i]=label;const btn=q(`.ld-pad[data-pad='${i}']`);if(btn){btn.classList.add('loaded');const sm=btn.querySelector('small');if(sm)sm.textContent=label;}}
 function loadPreset(){const s=st();if(!s)return;const sel=q('#soundPreset');if(!sel)return;const p=PRESETS[Number(sel.value)||0],buf=makeBuffer(p[2]);if(!buf)return;s.padBuffers[selectedPad]=buf;s.padMeta[selectedPad]={label:p[1],factory:true,preset:p[2],...(selectedPad<8?PERFORMANCE_ROLE_META[selectedPad]:{})};padLabel(selectedPad,p[1]);status(`Pad ${selectedPad+1} loaded: ${p[1]}.`);paintPads();}
