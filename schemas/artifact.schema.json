@@ -37,6 +37,15 @@
     },
     "hash": {
       "type": "string"
+    },
+    "reviewState": {
+      "type": "string",
+      "enum": [
+        "UNREVIEWED",
+        "CANDIDATE",
+        "APPROVED",
+        "REJECTED"
+      ]
     }
   }
 }
