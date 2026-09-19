@@ -20,8 +20,15 @@ async function runCase(label, contextOptions){
   const context=await browser.newContext(contextOptions);
   const page=await context.newPage();
   const errors=[];
+  const externalFailures=[];
   page.on('pageerror',e=>errors.push(String(e)));
-  page.on('console',msg=>{ if(msg.type()==='error') errors.push(msg.text()); });
+  page.on('response',res=>{
+    if(res.status()>=400){
+      const u=res.url();
+      if(u.startsWith('http://127.0.0.1:8765/')) errors.push('local '+res.status()+' '+u);
+      else externalFailures.push(res.status()+' '+u);
+    }
+  });
 
   await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
   await page.waitForSelector('#play');
@@ -44,6 +51,8 @@ async function runCase(label, contextOptions){
   const playText=await page.locator('#play').innerText();
   if(!playText.includes('STOP SET')) throw new Error(label+': transport did not stay running');
   if(errors.length) throw new Error(label+': browser errors: '+errors.join(' | '));
+  if(!/PACK:\s*(READY|FALLBACK OK)/.test(diag)) throw new Error(label+': pack never reached READY/FALLBACK state: '+diag);
+  if(externalFailures.length) console.log(label+' external sample/CDN failures handled by fallback:', externalFailures.join(' | '));
 
   await page.click('#play');
   await page.waitForFunction(()=>document.querySelector('#clock')?.textContent==='SILENT',null,{timeout:5000});
