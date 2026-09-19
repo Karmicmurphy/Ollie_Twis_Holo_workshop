@@ -109,8 +109,13 @@ async function initAudio(){
 
  audio={limiter,comp,sat,masterLP,dry,reverb,delay,g,duck:duckBus,fallbackKick,fallbackHat,fallbackClap,sub,bass,pad,padFilter,pluck,lead,atmosNoise,atmosAuto,atmosGain,surf,vocalFilter,players};
  packState='LOADING';diag();
- await Promise.race([Tone.loaded().then(()=>packState='READY'),new Promise(r=>setTimeout(()=>{if(packState!=='READY')packState='FALLBACK OK';r()},7000))]).catch(()=>packState='FALLBACK OK');
- diag();
+ const packLoad=Tone.loaded()
+   .then(()=>{packState='READY';diag();return true;})
+   .catch(()=>{packState='FALLBACK OK';diag();return false;});
+ await Promise.race([
+   packLoad,
+   new Promise(r=>setTimeout(()=>{if(packState==='LOADING'){packState='FALLBACK OK';diag();}r(false)},7000))
+ ]);
  audio.loop=new Tone.Loop(tick,'16n');
  Tone.Transport.bpm.value=+$('#bpm').value;
  applyMacros();
