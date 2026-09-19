@@ -69,6 +69,7 @@ async function runCase(label, contextOptions, opts={}){
   await page.waitForFunction(() => window.__TWIS_PRO_RIG__?.snapshot().running===true, null, {timeout:12000});
   let live=await sampleHealth(page,16,120);
   if(maxLevel(live)<0.00005) throw new Error(label+': PLAY produced no measurable output');
+  if(maxLevel(live)>1.01) throw new Error(label+': output exceeded limiter range '+maxLevel(live));
 
   for(const sel of ['[data-stem="KICK"]','[data-stem="BASS"]','[data-stem="PERC"]','[data-stem="CHORDS"]','[data-stem="MELODY"]','[data-stem="ATMOS"]','[data-stem="VOCAL"]','[data-stem="FX"]']){
     await page.click(sel);
@@ -129,6 +130,9 @@ async function runCase(label, contextOptions, opts={}){
   if(opts.blockSamples && pack!=='FALLBACK OK'){
     throw new Error(label+': forced sample failure did not enter FALLBACK OK, got '+pack);
   }
+  if(!opts.blockSamples && pack!=='READY'){
+    throw new Error(label+': intended sample pack never became READY, got '+pack);
+  }
 
   await page.click('#play');
   await sleep(260);
@@ -152,6 +156,25 @@ async function runCase(label, contextOptions, opts={}){
   return {label,diag,pack};
 }
 
+
+async function runToneFallbackCase(){
+  const browser=await chromium.launch({headless:true});
+  const context=await browser.newContext({viewport:{width:1366,height:768}});
+  await context.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/tone\//,route=>route.abort('failed'));
+  const page=await context.newPage();
+  const errors=[];
+  page.on('pageerror',e=>errors.push(String(e)));
+  await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>typeof window.Tone!=='undefined',null,{timeout:12000});
+  await page.click('#play');
+  await page.waitForFunction(()=>window.__TWIS_PRO_RIG__?.snapshot().running===true,null,{timeout:12000});
+  const rows=await sampleHealth(page,8,100);
+  if(maxLevel(rows)<0.00002) throw new Error('Tone fallback CDN path produced no audio');
+  if(errors.length) throw new Error('Tone fallback browser errors '+errors.join(' | '));
+  await page.click('#play');
+  await browser.close();
+  return {toneFallback:true};
+}
 
 async function runLoopDeckCase(){
   const browser=await chromium.launch({headless:true});
@@ -206,9 +229,10 @@ try{
   const mobile=await runCase('mobile',{...devices['Pixel 7'],viewport:{width:412,height:915}});
   const fallback=await runCase('sample-failure',{viewport:{width:1366,height:768}},{blockSamples:true});
   const slow=await runCase('slow-samples',{viewport:{width:1366,height:768}},{slowSamples:true});
+  const toneFallback=await runToneFallbackCase();
   const loopDeck=await runLoopDeckCase();
   const offline=await runOfflineWarmCase();
-  console.log('PRO RIG FINISH BROWSER PROOF PASS '+JSON.stringify({desktop,mobile,fallback,slow,loopDeck,offline}));
+  console.log('PRO RIG FINISH BROWSER PROOF PASS '+JSON.stringify({desktop,mobile,fallback,slow,toneFallback,loopDeck,offline}));
 }finally{
   server.kill('SIGTERM');
 }
