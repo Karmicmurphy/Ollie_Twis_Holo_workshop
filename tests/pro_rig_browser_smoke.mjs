@@ -2,10 +2,10 @@ import { chromium, devices } from 'playwright';
 import { spawn } from 'node:child_process';
 
 const server = spawn('python', ['-m','http.server','8765','-d','app'], {stdio:'ignore'});
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function waitServer(){
-  for(let i=0;i<30;i++){
+  for(let i=0;i<40;i++){
     try{
       const r=await fetch('http://127.0.0.1:8765/pro-rig.html');
       if(r.ok)return;
@@ -15,59 +15,151 @@ async function waitServer(){
   throw new Error('local server did not start');
 }
 
-async function runCase(label, contextOptions){
+async function sampleHealth(page, count=12, delay=120){
+  const out=[];
+  for(let i=0;i<count;i++){
+    out.push(await page.evaluate(() => window.__TWIS_PRO_RIG__?.snapshot()));
+    await sleep(delay);
+  }
+  return out.filter(Boolean);
+}
+
+function maxLevel(rows){
+  return Math.max(0, ...rows.map(x => Number(x.level)||0));
+}
+
+async function runCase(label, contextOptions, opts={}){
   const browser=await chromium.launch({headless:true});
   const context=await browser.newContext(contextOptions);
+
+  if(opts.blockSamples){
+    await context.route(/raw\.githubusercontent\.com\/(Boochi44|n33kos)\//, route => route.abort('failed'));
+  }
+
+  if(opts.slowSamples){
+    await context.route(/raw\.githubusercontent\.com\/(Boochi44|n33kos)\//, async route => {
+      const response=await route.fetch();
+      await sleep(7600);
+      await route.fulfill({response});
+    });
+  }
+
   const page=await context.newPage();
   const errors=[];
-  const externalFailures=[];
-  page.on('pageerror',e=>errors.push(String(e)));
-  page.on('response',res=>{
-    if(res.status()>=400){
-      const u=res.url();
-      if(u.startsWith('http://127.0.0.1:8765/')) errors.push('local '+res.status()+' '+u);
-      else externalFailures.push(res.status()+' '+u);
+  page.on('pageerror', e => errors.push(String(e)));
+  page.on('response', res => {
+    if(res.status()>=400 && res.url().startsWith('http://127.0.0.1:8765/')){
+      errors.push('local '+res.status()+' '+res.url());
     }
   });
 
-  await page.goto('http://127.0.0.1:8765/pro-rig.html',{waitUntil:'domcontentloaded'});
+  await page.goto('http://127.0.0.1:8765/pro-rig.html', {waitUntil:'domcontentloaded'});
   await page.waitForSelector('#play');
-  const before=await page.locator('#clock').innerText();
-  if(before!=='SILENT') throw new Error(label+': expected SILENT on entry, got '+before);
+
+  const box=await page.locator('#play').boundingBox();
+  if(!box || box.width<44 || box.height<44) throw new Error(label+': PLAY touch target too small');
+  if(await page.locator('#clock').innerText()!=='SILENT') throw new Error(label+': page not silent on entry');
+
+  const initial=await page.evaluate(() => window.__TWIS_PRO_RIG__?.snapshot());
+  if(!initial || initial.running || initial.contextState!=='not-started'){
+    throw new Error(label+': bad initial health '+JSON.stringify(initial));
+  }
 
   await page.click('#play');
-  await page.waitForFunction(()=>document.querySelector('#play')?.textContent.includes('STOP SET'),null,{timeout:12000});
-  await page.waitForFunction(()=>/AUDIO:\s*RUNNING/.test(document.querySelector('#diag')?.textContent||''),null,{timeout:12000});
+  await page.waitForFunction(() => window.__TWIS_PRO_RIG__?.snapshot().running===true, null, {timeout:12000});
+  let live=await sampleHealth(page,16,120);
+  if(maxLevel(live)<0.00005) throw new Error(label+': PLAY produced no measurable output');
 
-  await page.click('[data-scene="BREAK"]');
-  await page.waitForFunction(()=>/queued|LIVE/.test(document.querySelector('#status')?.textContent||''),null,{timeout:5000});
-  await page.click('#vocalHit');
-  await page.click('#build');
-  await page.click('#echo');
-  await page.click('#wash');
+  for(const sel of ['[data-stem="KICK"]','[data-stem="BASS"]','[data-stem="PERC"]','[data-stem="CHORDS"]','[data-stem="MELODY"]','[data-stem="ATMOS"]','[data-stem="VOCAL"]','[data-stem="FX"]']){
+    await page.click(sel);
+    await page.click(sel);
+  }
+
+  for(const scene of ['INTRO','DEEP','LIFT','BREAK','PEAK','OUTRO']){
+    await page.click('[data-scene="'+scene+'"]');
+  }
+
+  for(const id of ['#vocalHit','#build','#drop','#echo','#wash','#variation']){
+    await page.click(id);
+  }
+
+  for(let i=0;i<24;i++) await page.click(i%2 ? '#echo' : '#wash');
+  for(let i=0;i<12;i++) await page.click('#variation');
+
+  let rapid=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot());
+  if(!rapid.running || rapid.contextState!=='running') throw new Error(label+': engine died under rapid interaction');
+
+  for(let i=0;i<8;i++){
+    await page.click('#play');
+    await sleep(160);
+
+    let stopped=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot());
+    if(stopped.running || stopped.transportState!=='stopped'){
+      throw new Error(label+': STOP failed on cycle '+i+' '+JSON.stringify(stopped));
+    }
+
+    const silentRows=await sampleHealth(page,5,80);
+    if(maxLevel(silentRows)>0.02) throw new Error(label+': STOP leaked audio on cycle '+i+' level='+maxLevel(silentRows));
+
+    await page.click('#play');
+    await page.waitForFunction(() => window.__TWIS_PRO_RIG__?.snapshot().running===true, null, {timeout:5000});
+    const restartRows=await sampleHealth(page,5,80);
+    if(maxLevel(restartRows)<0.00002) throw new Error(label+': restart '+i+' produced silence');
+  }
+
+  let repeated=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot());
+  if(repeated.startCount!==9 || repeated.stopCount!==8){
+    throw new Error(label+': start/stop duplication detected '+JSON.stringify(repeated));
+  }
+  if(repeated.maxTickJitter>0.03){
+    throw new Error(label+': scheduler jitter too high '+repeated.maxTickJitter);
+  }
+
+  if(opts.longRun){
+    const mem0=await page.evaluate(() => performance.memory?.usedJSHeapSize||0);
+    await sleep(20000);
+    const mem1=await page.evaluate(() => performance.memory?.usedJSHeapSize||0);
+    const h=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot());
+    if(!h.running || h.tickCount<100) throw new Error(label+': duration run stalled '+JSON.stringify(h));
+    if(h.maxTickJitter>0.03) throw new Error(label+': duration scheduler drift '+h.maxTickJitter);
+    console.log(label+' duration health '+JSON.stringify({tickCount:h.tickCount,maxTickJitter:h.maxTickJitter,memGrowth:mem1&&mem0?mem1-mem0:null}));
+  }
+
+  const pack=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot().packState);
+  if(opts.blockSamples && pack!=='FALLBACK OK'){
+    throw new Error(label+': forced sample failure did not enter FALLBACK OK, got '+pack);
+  }
+
+  await page.click('#play');
+  await sleep(260);
+  const finalStop=await page.evaluate(() => window.__TWIS_PRO_RIG__.snapshot());
+  const finalSilence=await sampleHealth(page,8,80);
+  if(finalStop.running || maxLevel(finalSilence)>0.02){
+    throw new Error(label+': final STOP is not silent');
+  }
+
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForSelector('#play');
+  const reloaded=await page.evaluate(() => window.__TWIS_PRO_RIG__?.snapshot());
+  if(!reloaded || reloaded.running || reloaded.contextState!=='not-started' || await page.locator('#clock').innerText()!=='SILENT'){
+    throw new Error(label+': reload did not return clean state '+JSON.stringify(reloaded));
+  }
+
+  if(errors.length) throw new Error(label+': browser errors '+errors.join(' | '));
 
   const diag=await page.locator('#diag').innerText();
-  const status=await page.locator('#status').innerText();
-  const playText=await page.locator('#play').innerText();
-  if(!playText.includes('STOP SET')) throw new Error(label+': transport did not stay running');
-  if(errors.length) throw new Error(label+': browser errors: '+errors.join(' | '));
-  if(!/PACK:\s*(READY|FALLBACK OK)/.test(diag)) throw new Error(label+': pack never reached READY/FALLBACK state: '+diag);
-  if(externalFailures.length) console.log(label+' external sample/CDN failures handled by fallback:', externalFailures.join(' | '));
-
-  await page.click('#play');
-  await page.waitForFunction(()=>document.querySelector('#clock')?.textContent==='SILENT',null,{timeout:5000});
   await browser.close();
-  return {label,diag,status};
+  return {label,diag,pack};
 }
 
 await waitServer();
+
 try{
-  const desktop=await runCase('desktop',{viewport:{width:1366,height:768}});
-  const mobile=await runCase('mobile',{
-    ...devices['Pixel 7'],
-    viewport:{width:412,height:915}
-  });
-  console.log('PRO RIG BROWSER PROOF PASS', JSON.stringify({desktop,mobile}));
+  const desktop=await runCase('desktop',{viewport:{width:1366,height:768}},{longRun:true});
+  const mobile=await runCase('mobile',{...devices['Pixel 7'],viewport:{width:412,height:915}});
+  const fallback=await runCase('sample-failure',{viewport:{width:1366,height:768}},{blockSamples:true});
+  const slow=await runCase('slow-samples',{viewport:{width:1366,height:768}},{slowSamples:true});
+  console.log('PRO RIG FINISH BROWSER PROOF PASS '+JSON.stringify({desktop,mobile,fallback,slow}));
 }finally{
   server.kill('SIGTERM');
 }
