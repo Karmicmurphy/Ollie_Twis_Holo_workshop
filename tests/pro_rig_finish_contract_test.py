@@ -22,17 +22,19 @@ assert "stopCount++;$(\'.ld-step.now\').forEach" not in engine
 assert "PLAY SET" in simple and "STOP / CLEAR" in simple
 assert "loadPerformancePack" in simple
 assert "PERFORMANCE_ASSETS" in sound
-assert "averagenative/0x808/main/samples/909/kick.wav" in sound
-assert "maximecb/groovie/main/samples/hat_closed_03.wav" in sound
-assert "maximecb/groovie/main/samples/perc_02.wav" in sound
+assert "./assets/samples/twis/909-kick.wav" in sound
+assert "./assets/samples/twis/hat-closed-03.wav" in sound
+assert "./assets/samples/twis/perc-02.wav" in sound
+assert "INTRO:{active:[1,1,0,0,1,0,0,0]" in simple
 assert "DEEP:{active:[1,1,0,1,1,1,0,0]" in simple
+assert "startProfessionalArc" in simple
 assert "HATS:{deep:[0,0,.18,0" in simple
-assert "am_ash.wav" in sound
 assert "FORMANT VOICE" in sound
 assert "performanceRate" in engine
 assert "KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL" not in simple  # roles are explicit array, not one collapsed sound
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw
 assert '"./assets/twis-pro-rig-v4.js"' not in sw
-assert "twis-holo-workshop-v17-one-loop-core" in sw
+assert "twis-holo-workshop-v18-sonic-salvage" in sw
+assert '"./assets/samples/twis/909-kick.wav"' in sw
 print("Unified workstation finish contract PASS")
