@@ -133,7 +133,7 @@ function commitScene(name){
  applyMacros();$$('.scene').forEach(b=>b.classList.toggle('on',b.dataset.scene===name));say(name+' scene LIVE.');
 }
 function tick(time){
- if(!audio)return;
+ if(!audio||!running)return;
  const s=step%16;bar=Math.floor(step/16);const expected=60/(+$('#bpm').value||124)/4;if(lastTickAudioTime){maxTickJitter=Math.max(maxTickJitter,Math.abs((time-lastTickAudioTime)-expected));}lastTickAudioTime=time;tickCount++;
  if(s===0 && queuedScene){const n=queuedScene;queuedScene=null;Tone.Draw.schedule(()=>commitScene(n),time);}
  const d=progression[bar%progression.length],e=v('energy');
@@ -168,7 +168,7 @@ function tick(time){
  Tone.Draw.schedule(()=>$('#clock').textContent='BAR '+String(bar+1).padStart(2,'0')+' · '+String(s+1).padStart(2,'0'),time);
 }
 async function start(){if(running)return;if(startPromise)return startPromise;$('#play').disabled=true;$('#play').textContent='STARTING…';startPromise=(async()=>{say('Starting audio and loading sound pack…');await initAudio();if(Tone.getContext().state!=='running')await Tone.getContext().resume();if(!loopStarted){audio.loop.start(0);loopStarted=true}audio.runGate.gain.cancelScheduledValues(Tone.now());audio.runGate.gain.rampTo(1,.025);Tone.Transport.start('+0.05');running=true;startCount++;$('#play').textContent='■ STOP SET';diag();say(packState==='READY'?'DEEP set running with CC0 performance pack.':'DEEP set running · sample fallback is active where needed.');})();try{return await startPromise}finally{startPromise=null;$('#play').disabled=false}}
-function stop(){if(!running)return;const now=Tone.now();audio?.runGate?.gain.cancelScheduledValues(now);audio?.runGate?.gain.rampTo(0,.02);Tone.Transport.stop();Tone.Transport.position=0;try{audio?.pad?.releaseAll?.(now);audio?.lead?.releaseAll?.(now);audio?.sub?.triggerRelease?.(now);audio?.bass?.triggerRelease?.(now)}catch{}step=0;bar=0;queuedScene=null;buildState=null;lastTickAudioTime=0;running=false;stopCount++;$('#build').classList.remove('on');$('#play').textContent='▶ PLAY SET';$('#clock').textContent='SILENT';say('Stopped.');diag()}
+function stop(){if(!running)return;const now=Tone.now();audio?.runGate?.gain.cancelScheduledValues(now);audio?.runGate?.gain.rampTo(0,.02);Tone.Transport.stop();Tone.Transport.position=0;try{audio?.pad?.releaseAll?.(now);audio?.lead?.releaseAll?.(now);audio?.sub?.triggerRelease?.(now);audio?.bass?.triggerRelease?.(now)}catch{}step=0;bar=0;queuedScene=null;buildState=null;lastTickAudioTime=0;stopCount++;$('#build').classList.remove('on');$('#play').textContent='▶ PLAY SET';$('#clock').textContent='SILENT';say('Stopped.');diag()}
 async function ensure(){if(!running)await start()}
 async function vocalHit(){await ensure();oneShot(audio.players.vocal,null,Tone.now(),.3,.2,1.2);$('#vocalHit').classList.add('on');setTimeout(()=>$('#vocalHit').classList.remove('on'),300)}
 async function build(){await ensure();buildState={startBar:bar,bars:4};$('#build').classList.add('on');say('4-bar build started.')}
