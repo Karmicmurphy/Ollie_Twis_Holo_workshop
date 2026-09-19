@@ -30,9 +30,10 @@ jobs:
           test ! -f functions/api/ai/chat.js || node --check functions/api/ai/chat.js
       - name: Pro Rig remote sample reachability
         run: |
-          curl -fsSL --range 0-1023 https://cdn.jsdelivr.net/gh/Boochi44/free-drum-samples@main/drum-samples/02-bounce/kicks/bounce-kick-01.wav -o /dev/null
-          curl -fsSL --range 0-1023 https://cdn.jsdelivr.net/gh/n33kos/kokoro-voices@main/samples/am_ash.wav -o /dev/null
+          curl -fsSL --range 0-1023 https://raw.githubusercontent.com/Boochi44/free-drum-samples/main/drum-samples/02-bounce/kicks/bounce-kick-01.wav -o /dev/null
+          curl -fsSL --range 0-1023 https://raw.githubusercontent.com/n33kos/kokoro-voices/main/samples/am_ash.wav -o /dev/null
           curl -fsSL --range 0-1023 https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js -o /dev/null
+          curl -fsSL --range 0-1023 https://unpkg.com/tone@14.8.49/build/Tone.js -o /dev/null
       - name: Smoke test
         run: python tests/smoke_test.py
       - name: Python contract tests
