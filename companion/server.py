@@ -568,7 +568,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if "reviewState" in x:
                     json_response(self, 409, {"error": "review state requires the governed human review route"}); return
                 con = connect()
-                existing = con.execute("SELECT project_id,authority_state,revision_number FROM artifacts WHERE id=?", (aid,)).fetchone()
+                existing = con.execute("SELECT project_id,authority_state,revision_number,review_state FROM artifacts WHERE id=?", (aid,)).fetchone()
                 if existing and existing["project_id"] != pid:
                     con.close(); json_response(self, 400, {"error": "artifact id belongs to a different project"}); return
                 protected_states = {"SOURCE", "PERMANENT_SOURCE", "CANON"}
