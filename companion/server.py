@@ -134,6 +134,7 @@ def connect() -> sqlite3.Connection:
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
           revision_number INTEGER NOT NULL DEFAULT 0,
           current_revision_id TEXT NOT NULL DEFAULT '',
+          review_state TEXT NOT NULL DEFAULT 'UNREVIEWED',
           retired_at TEXT
         );
         CREATE TABLE IF NOT EXISTS artifact_revisions(
@@ -146,6 +147,7 @@ def connect() -> sqlite3.Connection:
           title TEXT NOT NULL,
           kind TEXT NOT NULL,
           authority_state TEXT NOT NULL,
+          review_state TEXT NOT NULL DEFAULT 'UNREVIEWED',
           path TEXT NOT NULL DEFAULT '',
           payload TEXT NOT NULL DEFAULT '{}',
           snapshot_json TEXT NOT NULL,
@@ -153,6 +155,26 @@ def connect() -> sqlite3.Connection:
           actor TEXT NOT NULL DEFAULT 'human-or-tool',
           UNIQUE(artifact_id, revision_number)
         );
+        CREATE TABLE IF NOT EXISTS artifact_reviews(
+          id TEXT PRIMARY KEY,
+          artifact_id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          revision_number INTEGER NOT NULL,
+          from_review_state TEXT NOT NULL,
+          to_review_state TEXT NOT NULL,
+          decision TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          actor TEXT NOT NULL DEFAULT 'human'
+        );
+        CREATE TRIGGER IF NOT EXISTS artifact_reviews_no_update
+        BEFORE UPDATE ON artifact_reviews BEGIN
+          SELECT RAISE(ABORT, 'artifact reviews are immutable');
+        END;
+        CREATE TRIGGER IF NOT EXISTS artifact_reviews_no_delete
+        BEFORE DELETE ON artifact_reviews BEGIN
+          SELECT RAISE(ABORT, 'artifact reviews are immutable');
+        END;
         CREATE TRIGGER IF NOT EXISTS artifact_revisions_no_update
         BEFORE UPDATE ON artifact_revisions BEGIN
           SELECT RAISE(ABORT, 'artifact revisions are immutable');
@@ -190,8 +212,13 @@ def connect() -> sqlite3.Connection:
         con.execute("ALTER TABLE artifacts ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 0")
     if "current_revision_id" not in cols:
         con.execute("ALTER TABLE artifacts ADD COLUMN current_revision_id TEXT NOT NULL DEFAULT ''")
+    if "review_state" not in cols:
+        con.execute("ALTER TABLE artifacts ADD COLUMN review_state TEXT NOT NULL DEFAULT 'UNREVIEWED'")
     if "retired_at" not in cols:
         con.execute("ALTER TABLE artifacts ADD COLUMN retired_at TEXT")
+    rev_cols = {r["name"] for r in con.execute("PRAGMA table_info(artifact_revisions)").fetchall()}
+    if "review_state" not in rev_cols:
+        con.execute("ALTER TABLE artifact_revisions ADD COLUMN review_state TEXT NOT NULL DEFAULT 'UNREVIEWED'")
     con.commit()
     backfill_artifact_revisions(con)
     return con
@@ -265,6 +292,7 @@ def normalized_artifact_snapshot(a: dict[str, Any]) -> dict[str, Any]:
         "path": a.get("path", ""),
         "payload": a.get("payload", {}),
         "authorityState": a.get("authorityState", "DRAFT"),
+        "reviewState": a.get("reviewState", "UNREVIEWED"),
         "retiredAt": a.get("retiredAt"),
     }
 
@@ -281,11 +309,12 @@ def insert_revision(con, artifact: dict[str, Any], revision_number: int, parent_
     con.execute(
         """INSERT INTO artifact_revisions(
              id,artifact_id,project_id,revision_number,parent_revision_id,snapshot_sha256,
-             title,kind,authority_state,path,payload,snapshot_json,created_at,actor
-           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+             title,kind,authority_state,review_state,path,payload,snapshot_json,created_at,actor
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             rid, artifact["id"], artifact["projectId"], revision_number, parent_revision_id, digest,
             artifact["title"], artifact["kind"], artifact.get("authorityState", "DRAFT"),
+            artifact.get("reviewState", "UNREVIEWED"),
             artifact.get("path", ""), json.dumps(artifact.get("payload", {}), ensure_ascii=False),
             json.dumps(snapshot, ensure_ascii=False, sort_keys=True), utc(), actor,
         ),
@@ -304,7 +333,7 @@ def backfill_artifact_revisions(con) -> None:
             artifact = {
                 "id": d["id"], "projectId": d["project_id"], "kind": d["kind"], "title": d["title"],
                 "path": d["path"], "payload": json.loads(d["payload"]), "authorityState": d["authority_state"],
-                "retiredAt": d.get("retired_at"),
+                "reviewState": d.get("review_state") or "UNREVIEWED", "retiredAt": d.get("retired_at"),
             }
             rev = insert_revision(con, artifact, 1, None, "migration")
             con.execute(
@@ -381,18 +410,18 @@ def save_artifact_row(
     con.execute(
         """INSERT INTO artifacts(
              id,project_id,kind,title,path,payload,authority_state,sha256,created_at,updated_at,
-             revision_number,current_revision_id,retired_at
-           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+             revision_number,current_revision_id,review_state,retired_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET
              kind=excluded.kind,title=excluded.title,path=excluded.path,payload=excluded.payload,
              authority_state=excluded.authority_state,sha256=excluded.sha256,updated_at=excluded.updated_at,
              revision_number=excluded.revision_number,current_revision_id=excluded.current_revision_id,
-             retired_at=excluded.retired_at""",
+             review_state=excluded.review_state,retired_at=excluded.retired_at""",
         (
             artifact["id"], artifact["projectId"], artifact["kind"], artifact["title"], artifact.get("path", ""),
             json.dumps(artifact.get("payload", {}), ensure_ascii=False), artifact.get("authorityState", "DRAFT"),
             artifact.get("hash", ""), created_at, artifact.get("updatedAt", utc()),
-            revision_number, rev["id"], artifact.get("retiredAt"),
+            revision_number, rev["id"], artifact.get("reviewState", "UNREVIEWED"), artifact.get("retiredAt"),
         ),
     )
     index_artifact(con, artifact)
@@ -468,11 +497,15 @@ class Handler(SimpleHTTPRequestHandler):
                         "SELECT * FROM receipts WHERE project_id=? AND details LIKE ? ORDER BY created_at DESC",
                         (pid, f'%"artifactId": "{aid}"%'),
                     ).fetchall()]
+                    reviews = [dict(r) for r in con.execute(
+                        "SELECT * FROM artifact_reviews WHERE artifact_id=? AND project_id=? ORDER BY created_at DESC",
+                        (aid, pid),
+                    ).fetchall()]
                     con.close()
                     for rev in revisions:
                         rev["payload"] = json.loads(rev["payload"])
                         rev["snapshot"] = json.loads(rev["snapshot_json"])
-                    json_response(self, 200, {"artifactId": aid, "projectId": pid, "revisions": revisions, "receipts": receipts}); return
+                    json_response(self, 200, {"artifactId": aid, "projectId": pid, "revisions": revisions, "receipts": receipts, "reviews": reviews}); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions/latest"):
                 pid = safe_id(u.path.split("/")[3]); con = connect()
                 r = con.execute("SELECT * FROM sessions WHERE project_id=? ORDER BY created_at DESC LIMIT 1", (pid,)).fetchone(); con.close()
@@ -532,6 +565,8 @@ class Handler(SimpleHTTPRequestHandler):
                     if p.exists() and p.is_file():
                         sha = sha256_file(p)
                 requested_authority = x.get("authorityState", "DRAFT")
+                if "reviewState" in x:
+                    json_response(self, 409, {"error": "review state requires the governed human review route"}); return
                 con = connect()
                 existing = con.execute("SELECT project_id,authority_state,revision_number FROM artifacts WHERE id=?", (aid,)).fetchone()
                 if existing and existing["project_id"] != pid:
@@ -543,7 +578,7 @@ class Handler(SimpleHTTPRequestHandler):
                     con.close(); json_response(self, 409, {"error": "Canon promotion requires a governed review route"}); return
                 if "expectedRevision" not in x:
                     con.close(); json_response(self, 428, {"error": "expectedRevision is required"}); return
-                a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": requested_authority, "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now, "retiredAt": None}
+                a = {"id": aid, "projectId": pid, "kind": x.get("kind", "note"), "title": x.get("title", "Untitled"), "path": rel, "payload": payload, "authorityState": requested_authority, "reviewState": (existing["review_state"] if existing and "review_state" in existing.keys() else "UNREVIEWED"), "hash": sha, "createdAt": x.get("createdAt", now), "updatedAt": now, "retiredAt": None}
                 try:
                     con.execute("BEGIN")
                     rev = save_artifact_row(
@@ -559,6 +594,77 @@ class Handler(SimpleHTTPRequestHandler):
                 a["revisionNumber"] = rev["revisionNumber"]; a["currentRevisionId"] = rev["id"]; a["snapshotSha256"] = rev["snapshotSha256"]
                 write_registry_snapshot()
                 json_response(self, 200, {"ok": True, "artifact": a}); return
+            if "/artifacts/" in u.path and u.path.endswith("/review"):
+                parts = u.path.strip("/").split("/")
+                if len(parts) == 6 and parts[0] == "api" and parts[1] == "projects" and parts[3] == "artifacts":
+                    pid = safe_id(parts[2]); aid = parts[4]; x = body_json(self)
+                    if "expectedRevision" not in x:
+                        json_response(self, 428, {"error": "expectedRevision is required"}); return
+                    decision = str(x.get("decision", "")).strip().lower()
+                    reason = str(x.get("reason", "")).strip()
+                    transitions = {
+                        ("UNREVIEWED", "candidate"): "CANDIDATE",
+                        ("REJECTED", "candidate"): "CANDIDATE",
+                        ("APPROVED", "candidate"): "CANDIDATE",
+                        ("CANDIDATE", "approve"): "APPROVED",
+                        ("CANDIDATE", "reject"): "REJECTED",
+                    }
+                    con = connect()
+                    row = con.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
+                    if not row:
+                        con.close(); json_response(self, 404, {"error": "artifact not found"}); return
+                    if row["project_id"] != pid:
+                        con.close(); json_response(self, 400, {"error": "artifact does not belong to project"}); return
+                    current_revision = int(row["revision_number"])
+                    if int(x.get("expectedRevision")) != current_revision:
+                        con.close(); json_response(self, 409, {"error": f"stale artifact revision: expected {x.get('expectedRevision')}, current {current_revision}"}); return
+                    from_review = row["review_state"] or "UNREVIEWED"
+                    authority_state = row["authority_state"]
+                    if decision == "promote_canon":
+                        if from_review != "APPROVED":
+                            con.close(); json_response(self, 409, {"error": "Canon promotion requires APPROVED human review"}); return
+                        if authority_state in {"SOURCE", "PERMANENT_SOURCE"}:
+                            con.close(); json_response(self, 409, {"error": "source authority cannot be converted to Canon"}); return
+                        to_review = "APPROVED"
+                        next_authority = "CANON"
+                    else:
+                        to_review = transitions.get((from_review, decision))
+                        if not to_review:
+                            con.close(); json_response(self, 409, {"error": f"invalid review transition: {from_review} -> {decision}"}); return
+                        next_authority = authority_state
+                    artifact = {
+                        "id": row["id"], "projectId": row["project_id"], "kind": row["kind"], "title": row["title"],
+                        "path": row["path"], "payload": json.loads(row["payload"]), "authorityState": next_authority,
+                        "reviewState": to_review, "hash": row["sha256"], "createdAt": row["created_at"], "updatedAt": utc(),
+                        "retiredAt": row["retired_at"],
+                    }
+                    try:
+                        con.execute("BEGIN")
+                        rev = save_artifact_row(con, artifact, current_revision, "human", "artifact.review")
+                        con.execute(
+                            """INSERT INTO artifact_reviews(
+                                 id,artifact_id,project_id,revision_number,from_review_state,to_review_state,
+                                 decision,reason,created_at,actor
+                               ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                            (str(uuid.uuid4()), aid, pid, rev["revisionNumber"], from_review, to_review,
+                             decision, reason, utc(), "human"),
+                        )
+                        add_receipt(con, pid, "artifact.review.decision", "human", {
+                            "artifactId": aid, "decision": decision, "fromReviewState": from_review,
+                            "toReviewState": to_review, "authorityState": next_authority,
+                            "revisionNumber": rev["revisionNumber"], "reason": reason,
+                        })
+                        con.commit()
+                    except Exception:
+                        con.rollback(); con.close(); raise
+                    con.close()
+                    write_registry_snapshot()
+                    json_response(self, 200, {
+                        "ok": True, "artifactId": aid, "decision": decision,
+                        "reviewState": to_review, "authorityState": next_authority,
+                        "revisionNumber": rev["revisionNumber"], "currentRevisionId": rev["id"],
+                        "snapshotSha256": rev["snapshotSha256"],
+                    }); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/sessions"):
                 pid = safe_id(u.path.split("/")[3]); x = body_json(self); sid = x.get("id") or str(uuid.uuid4()); now = utc()
                 con = connect()
@@ -661,6 +767,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "project": [dict(r) for r in con.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchall()],
                         "artifacts": [dict(r) for r in con.execute("SELECT * FROM artifacts WHERE project_id=?", (pid,)).fetchall()],
                         "artifactRevisions": [dict(r) for r in con.execute("SELECT * FROM artifact_revisions WHERE project_id=? ORDER BY artifact_id,revision_number", (pid,)).fetchall()],
+                        "artifactReviews": [dict(r) for r in con.execute("SELECT * FROM artifact_reviews WHERE project_id=? ORDER BY created_at", (pid,)).fetchall()],
                         "sessions": [dict(r) for r in con.execute("SELECT * FROM sessions WHERE project_id=?", (pid,)).fetchall()],
                         "receipts": [dict(r) for r in con.execute("SELECT * FROM receipts WHERE project_id=?", (pid,)).fetchall()],
                     }; con.close()
@@ -725,6 +832,7 @@ class Handler(SimpleHTTPRequestHandler):
                 artifact = {
                     "id": r["id"], "projectId": r["project_id"], "kind": r["kind"], "title": r["title"],
                     "path": r["path"], "payload": json.loads(r["payload"]), "authorityState": "RETIRED",
+                    "reviewState": r["review_state"] or "UNREVIEWED",
                     "hash": r["sha256"], "createdAt": r["created_at"], "updatedAt": utc(), "retiredAt": utc(),
                 }
                 try:
