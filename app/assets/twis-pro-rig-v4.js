@@ -72,7 +72,7 @@ function oneShot(player,fallback,time,vel=1,offset=0,dur){
 async function buildAudio(){
  await Tone.start();
  const runGate=new Tone.Gain(0).toDestination();
- const meter=new Tone.Meter({channels:2,normalRange:true,smoothing:.82});
+ const meter=new Tone.Meter({normalRange:true,smoothing:.82});
  runGate.connect(meter);
  const limiter=new Tone.Limiter(-1).connect(runGate);
  const comp=new Tone.Compressor({threshold:-18,ratio:3,attack:.01,release:.16}).connect(limiter);
