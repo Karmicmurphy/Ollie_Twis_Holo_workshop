@@ -111,7 +111,7 @@ function stop(){
     }
   });
   if(state.outputGate)state.outputGate.gain.setTargetAtTime(0,now,.005);
-  state.stopCount++;$('#ldPlay').textContent='▶';$('.ld-step.now').forEach(x=>x.classList.remove('now'));renderLoops();
+  state.stopCount++;$('#ldPlay').textContent='▶';document.querySelectorAll('.ld-step.now').forEach(x=>x.classList.remove('now'));renderLoops();
 }
 function scheduleAhead(){
   if(!state.playing)return;const c=audio(),limit=c.currentTime+state.lookAhead;
