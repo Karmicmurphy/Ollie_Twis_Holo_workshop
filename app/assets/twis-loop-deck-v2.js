@@ -13,7 +13,7 @@ const state={
   micStream:null,micSource:null,recorderNode:null,recorderSilent:null,recordTarget:-1,pendingCapture:null,
   importBuffer:null,importFile:null,importName:'',bpmGuess:0,beatOffset:0,transients:[],slices:[],sliceMode:'1 BAR',syncMode:'REPITCH',
   masterVolume:.9, scene:0, scenes:[null,null,null,null], tap:[], latencyOffsetMs:Number(localStorage.twisLoopOffsetMs||0),
-  mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false, storagePersistent:false
+  mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false, storagePersistent:false, restoreDone:false, restorePromise:null
 };
 const core=window.TWIS_LOOP_CORE;
 if(!core)throw new Error('TWIS Loop Core must load before Loop Deck V2');
@@ -57,7 +57,15 @@ function audio(){
   initClock(); initRecorderWorklet();
   return state.ctx;
 }
-async function unlock(){const c=audio();if(c.state!=='running')await c.resume();const base=Math.round((c.baseLatency||0)*1000),out=Math.round((c.outputLatency||0)*1000);status(`Audio ready · base ${base} ms · output ${out} ms · rec offset ${state.latencyOffsetMs} ms`);}
+async function unlock(){
+  const c=audio();if(c.state!=='running')await c.resume();
+  if(!state.restoreDone){
+    if(!state.restorePromise)state.restorePromise=restoreAudio().finally(()=>{state.restoreDone=true;state.restorePromise=null;});
+    await state.restorePromise;
+  }
+  const base=Math.round((c.baseLatency||0)*1000),out=Math.round((c.outputLatency||0)*1000);
+  status(`Audio ready · base ${base} ms · output ${out} ms · rec offset ${state.latencyOffsetMs} ms`);
+}
 function initClock(){
   if(state.worker)return;
   const src=`let t=null;onmessage=e=>{if(e.data==='start'&&!t)t=setInterval(()=>postMessage('tick'),20);if(e.data==='stop'&&t){clearInterval(t);t=null}}`;
@@ -153,7 +161,16 @@ async function opfsDelete(path){try{const parts=path.split('/'),file=parts.pop()
 function audioBufferToWav(buf){const ch=Math.min(2,buf.numberOfChannels),len=buf.length,bytes=44+len*ch*2,ab=new ArrayBuffer(bytes),v=new DataView(ab);const s=(o,t)=>[...t].forEach((x,i)=>v.setUint8(o+i,x.charCodeAt(0)));s(0,'RIFF');v.setUint32(4,bytes-8,true);s(8,'WAVE');s(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,ch,true);v.setUint32(24,buf.sampleRate,true);v.setUint32(28,buf.sampleRate*ch*2,true);v.setUint16(32,ch*2,true);v.setUint16(34,16,true);s(36,'data');v.setUint32(40,len*ch*2,true);let o=44;for(let i=0;i<len;i++)for(let c=0;c<ch;c++){let x=clamp(buf.getChannelData(c)[i],-1,1);v.setInt16(o,x<0?x*32768:x*32767,true);o+=2;}return ab;}
 async function persistLoop(i){const b=state.loops[i].buffer;if(!b)return;await opfsWrite(`loops/${i}.wav`,new Uint8Array(audioBufferToWav(b)));}
 async function deleteLoopFile(i){await opfsDelete(`loops/${i}.wav`);}
-async function restoreAudio(){await unlock();for(let i=0;i<8;i++){const ab=await opfsRead(`loops/${i}.wav`);if(ab)try{state.loops[i].buffer=await audio().decodeAudioData(ab.slice(0));}catch{}}renderLoops();const imp=await opfsRead('imports/current.bin');if(imp)try{state.importBuffer=await audio().decodeAudioData(imp.slice(0));state.importFile=imp;drawWave();$('#ldDur').textContent=formatTime(state.importBuffer.duration);}catch{};}
+async function restoreAudio(){
+  const c=audio();
+  for(let i=0;i<8;i++){
+    const ab=await opfsRead(`loops/${i}.wav`);
+    if(ab)try{state.loops[i].buffer=await c.decodeAudioData(ab.slice(0));alignLoopMachine(i);}catch(e){console.warn('Loop restore',i,e);}
+  }
+  renderLoops();
+  const imp=await opfsRead('imports/current.bin');
+  if(imp)try{state.importBuffer=await c.decodeAudioData(imp.slice(0));state.importFile=imp;drawWave();$('#ldDur').textContent=formatTime(state.importBuffer.duration);}catch(e){console.warn('Import restore',e);}
+}
 function sceneData(){return {bpm:state.bpm,pattern:state.pattern,ratchets:state.ratchets,loopPlay:state.loops.map(x=>x.playing)};}
 function saveScene(i){state.scenes[i]=JSON.parse(JSON.stringify(sceneData()));localStorage.setItem(`twisLoopScene${i}`,JSON.stringify(state.scenes[i]));status(`Scene ${i+1} saved.`);}
 function loadScene(i){let s=state.scenes[i];if(!s){try{s=JSON.parse(localStorage.getItem(`twisLoopScene${i}`));}catch{}}if(!s)return saveScene(i);state.bpm=s.bpm||state.bpm;state.pattern=s.pattern||state.pattern;state.ratchets=s.ratchets||state.ratchets;$('#ldBpm').value=state.bpm;renderSeq();state.loops.forEach((l,k)=>{if(s.loopPlay?.[k]&&!l.playing&&l.buffer)startLoop(k,true);if(!s.loopPlay?.[k]&&l.playing)toggleLoop(k);});state.scene=i;$$('.ld-scene').forEach((b,k)=>b.classList.toggle('active',k===i));status(`Scene ${i+1} launched.`);}
@@ -208,7 +225,7 @@ function health(){
 }
 loadMeta();clock().setBpm(state.bpm);
 window.TWIS_LOOP_DECK={
-  open:async()=>{buildUI();$('#ldBpm').value=state.bpm;setTimeout(()=>restoreAudio().catch(()=>{}),100);},
+  open:async()=>{buildUI();$('#ldBpm').value=state.bpm;status('Tap PLAY or a pad to unlock audio and restore local session audio.');},
   state,analyzeLocal,health,
   commands:{play,stop:stopAll,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
 };
