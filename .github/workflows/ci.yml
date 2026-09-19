@@ -41,5 +41,11 @@ jobs:
         run: python tests/api_e2e_test.py
       - name: Cloudflare Worker contract
         run: node tests/cloudflare_worker_contract_test.mjs
+      - name: Install Node dependencies
+        run: npm install
+      - name: Install Chromium for browser proof
+        run: npx playwright install --with-deps chromium
+      - name: Pro Rig browser proof
+        run: npm run test:pro-rig-browser
       - name: Build static Pages output
-        run: npm install && npm run build
+        run: npm run build
