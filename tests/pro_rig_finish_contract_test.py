@@ -31,6 +31,11 @@ assert "startProfessionalArc" in simple
 assert "HATS:{deep:[0,0,.18,0" in simple
 assert "FORMANT VOICE" in sound
 assert "performanceRate" in engine
+assert "function proBass" in engine
+assert "function proPad" in engine
+assert "function proLead" in engine
+assert "triggerPerformanceSynth" in engine
+assert "stepSec()*.08" in engine
 assert "KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL" not in simple  # roles are explicit array, not one collapsed sound
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw
