@@ -61,8 +61,7 @@ function audio(){
 async function unlock(){
   const c=audio();if(c.state!=='running')await c.resume();
   if(!state.restoreDone){
-    if(!state.restorePromise)state.restorePromise=restoreAudio().finally(()=>{state.restoreDone=true;state.restorePromise=null;});
-    await state.restorePromise;
+    state.restoreDone=true;
   }
   state.outputGate?.gain.setTargetAtTime(1,c.currentTime,.006);
   const base=Math.round((c.baseLatency||0)*1000),out=Math.round((c.outputLatency||0)*1000);
@@ -176,7 +175,7 @@ async function finishCapture(p,msg){let buf=bufferFromWorklet(msg);const l=state
   if(p.overdub&&l.buffer){l.undo=l.buffer;buf=mixBuffers(l.buffer,buf);}else l.undo=l.buffer;
   l.buffer=buf;
   loopTransition(p.index,p.overdub?'OVERDUB_DONE':'RECORD_DONE');
-  renderLoops();await persistLoop(p.index);status(`Loop ${p.index+1} captured · ${buf.duration.toFixed(2)}s${p.overdub?' · overdubbed':''}`);startLoop(p.index,true);
+  renderLoops();status(`Loop ${p.index+1} captured for this session · ${buf.duration.toFixed(2)}s${p.overdub?' · overdubbed':''}`);startLoop(p.index,true);
 }
 async function toggleRecord(i){if(!(await ensureMic()))return;const l=state.loops[i];if(l.recording||l.armed){cancelRecord(i);return;}if(state.recordTarget>=0)return status('One loop can record at a time.');if(!state.playing)play();const start=nextGrid('bar'),free=l.bars==='FREE',stopAt=free?null:start+barSec(l.bars);const param=state.recorderNode?.parameters.get('recording');if(!param){state.recordTarget=-1;l.armed=false;l.recording=false;renderLoops();return status('Frame recorder unavailable on this browser.');}state.recordTarget=i;l.armed=true;loopTransition(i,l.buffer?'ARM_OVERDUB':'ARM_RECORD');renderLoops();param.cancelScheduledValues(audio().currentTime);param.setValueAtTime(0,audio().currentTime);param.setValueAtTime(1,start);if(stopAt)param.setValueAtTime(0,stopAt);state.pendingCapture={index:i,start,stopAt,overdub:!!l.buffer};l.recording=true;setTimeout(()=>loopTransition(i,l.buffer?'OVERDUB_START':'RECORD_START'),Math.max(0,(start-audio().currentTime)*1000));status(`Loop ${i+1} armed · starts next bar${free?' · tap REC to stop':` · ${l.bars} bar${l.bars>1?'s':''}`}`);renderLoops();if(stopAt)setTimeout(()=>{state.recordTarget=-1;},Math.max(0,(stopAt-audio().currentTime)*1000+80));else state.recordTarget=i;}
 function cancelRecord(i){const l=state.loops[i],p=state.recorderNode?.parameters.get('recording');if(p){p.cancelScheduledValues(audio().currentTime);p.setValueAtTime(0,audio().currentTime+.005);}state.recordTarget=-1;l.armed=false;l.recording=false;loopTransition(i,'CANCEL');renderLoops();}
@@ -184,7 +183,7 @@ function cycleBars(i){const vals=[1,2,4,8,16,'FREE'],l=state.loops[i],n=vals[(va
 function startLoop(i,quantized=false){const l=state.loops[i];if(!l.buffer)return;try{l.source?.stop();}catch{}const when=state.playing?(quantized?nextGrid('bar'):audio().currentTime+.015):audio().currentTime+.015;let offset=0;if(state.playing&&!quantized){const phase=transportPos(when)%l.buffer.duration;offset=phase;}l.source=playBuffer(l.buffer,when,true,1,offset,l.mute?0:l.volume);if(['EMPTY','ERROR'].includes(alignLoopMachine(i).state))alignLoopMachine(i);if(alignLoopMachine(i).state==='STOPPED')loopTransition(i,'QUEUE_PLAY');if(alignLoopMachine(i).state==='PLAY_QUEUED')loopTransition(i,'PLAY');l.playing=true;l.startTime=when-offset;renderLoops();animateLoops();}
 function toggleLoop(i){const l=state.loops[i];if(!l.buffer)return status(`Loop ${i+1} is empty.`);if(l.playing){try{l.source.stop(nextGrid('beat'));}catch{}l.playing=false;loopTransition(i,'STOP');renderLoops();}else startLoop(i,true);}
 function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;if(alignLoopMachine(i).state!=='EMPTY')loopTransition(i,'CLEAR');l.buffer=null;l.playing=false;deleteLoopFile(i);renderLoops();}
-function undoLoop(i){const l=state.loops[i];if(!l.undo)return;loopTransition(i,'UNDO');const t=l.buffer;l.buffer=l.undo;l.undo=t;loopTransition(i,'UNDO_DONE',{playing:l.playing});persistLoop(i);renderLoops();}
+function undoLoop(i){const l=state.loops[i];if(!l.undo)return;loopTransition(i,'UNDO');const t=l.buffer;l.buffer=l.undo;l.undo=t;loopTransition(i,'UNDO_DONE',{playing:l.playing});renderLoops();}
 function animateLoops(){let any=false;state.loops.forEach((l,i)=>{if(l.playing&&l.buffer){any=true;const p=((audio().currentTime-l.startTime)%l.buffer.duration)/l.buffer.duration;const el=$(`.ld-loop[data-loop='${i}'] .ld-progress span`);if(el)el.style.width=`${p*100}%`;}});if(any)requestAnimationFrame(animateLoops);}
 function renderLoops(){const el=$('#ldLoops');if(!el)return;el.innerHTML=state.loops.map((l,i)=>`<div class="ld-loop ${l.recording?'rec':''} ${l.playing?'playing':''}" data-loop="${i}"><div class="ld-loop-head"><button data-bars="${i}" class="ld-link">LOOP ${i+1}</button><button data-bars="${i}" class="ld-link">${l.bars==='FREE'?'FREE':l.bars+' BAR'}</button></div><div class="ld-progress"><span></span></div><div class="ld-loop-actions"><button data-rec="${i}">${l.recording||l.armed?'■ STOP':'● REC'}</button><button data-lplay="${i}">${l.playing?'■':'▶'}</button><button data-undo="${i}" ${l.undo?'':'disabled'}>UNDO</button><button data-clearloop="${i}">CLR</button></div></div>`).join('');$$('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));$$('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));$$('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));$$('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));$$('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));}
 function renderPads(){const el=$('#ldPads');if(!el)return;el.innerHTML=state.padNames.map((n,i)=>`<button class="ld-pad ${state.padBuffers[i]?'loaded':''}" data-pad="${i}"><b>${i+1}</b><small>${state.padMeta[i]?.label||n}</small></button>`).join('');$$('.ld-pad').forEach(b=>{b.onpointerdown=e=>{unlock();triggerPad(+b.dataset.pad,clamp(e.pressure||.82,.2,1));};b.oncontextmenu=e=>e.preventDefault();});}
@@ -201,7 +200,7 @@ function assignSlice(sliceIndex,padIndex){const r=state.slices[sliceIndex];if(!r
 function buildKit(){if(!state.slices.length)return status('Analyze and slice a track first.');diverseSliceIndexes(16).forEach((idx,p)=>assignSlice(idx,p));renderPads();renderSeq();saveMeta();status('Diverse 16-pad kit built locally from this track.');}
 function renderSlices(){const el=$('#ldSlices');if(!el)return;el.innerHTML=state.slices.map((s,i)=>`<button class="ld-slice" data-slice="${i}"><b>${i+1}</b><span>${s.dna.tag}</span><small>${s.dna.beats.toFixed(1)} beat · E ${(s.dna.rms*100).toFixed(0)} · T ${s.dna.density.toFixed(1)}/s</small></button>`).join('');$$('[data-slice]').forEach(b=>b.onclick=()=>{const i=+b.dataset.slice,r=state.slices[i];playBuffer(microSlice(state.importBuffer,r.start,r.end),audio().currentTime,false,state.syncMode==='REPITCH'?state.bpm/state.bpmGuess:1);});}
 function drawWave(){const cv=$('#ldWave'),b=state.importBuffer;if(!cv||!b)return;const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.fillStyle='#091014';c.fillRect(0,0,cv.width,cv.height);const d=b.getChannelData(0),stride=Math.max(1,Math.floor(d.length/cv.width)),mid=cv.height/2;c.strokeStyle='#40cf94';c.beginPath();for(let x=0;x<cv.width;x++){let m=0;for(let j=0;j<stride;j++)m=Math.max(m,Math.abs(d[x*stride+j]||0));c.moveTo(x,mid-m*mid*.9);c.lineTo(x,mid+m*mid*.9);}c.stroke();c.strokeStyle='#ffffff45';for(const s of state.slices){const x=s.start/b.duration*cv.width;c.beginPath();c.moveTo(x,0);c.lineTo(x,cv.height);c.stroke();}}
-async function importFile(file){await unlock();try{const arr=await file.arrayBuffer();state.importFile=arr.slice(0);state.importBuffer=await audio().decodeAudioData(arr.slice(0));state.importName=file.name;$('#ldDur').textContent=formatTime(state.importBuffer.duration);drawWave();await opfsWrite('imports/current.bin',new Uint8Array(state.importFile));await opfsWrite('imports/current-name.txt',file.name);status(`Loaded ${file.name} locally · ${formatTime(state.importBuffer.duration)}`);}catch(e){console.warn(e);status('Could not decode that audio format on this phone.');}}
+async function importFile(file){await unlock();try{const arr=await file.arrayBuffer();state.importFile=arr.slice(0);state.importBuffer=await audio().decodeAudioData(arr.slice(0));state.importName=file.name;$('#ldDur').textContent=formatTime(state.importBuffer.duration);drawWave();status(`Loaded ${file.name} for this session only · ${formatTime(state.importBuffer.duration)}`);}catch(e){console.warn(e);status('Could not decode that audio format on this phone.');}}
 function analyzeImport(){if(!state.importBuffer)return status('Import a track first.');status('Analyzing BPM, beat offset, transients and Loop DNA locally…');setTimeout(()=>{const a=analyzeLocal(state.importBuffer);state.bpmGuess=a.bpm;state.beatOffset=a.offset;state.transients=a.onsets;$('#ldGuess').textContent=a.bpm.toFixed(1);makeSlices(state.sliceMode);$('#ldSlicesN').textContent=state.slices.length;status(`Analysis: ${a.bpm.toFixed(1)} BPM · first beat ${a.offset.toFixed(3)}s · ${a.onsets.length} transients · confidence ${Math.round(a.confidence*100)}%`);},30);}
 async function opfsDir(pathParts){if(!navigator.storage?.getDirectory)return null;let dir=await navigator.storage.getDirectory();for(const p of pathParts)dir=await dir.getDirectoryHandle(p,{create:true});state.storageOK=true;return dir;}
 async function opfsWrite(path,data){try{const parts=path.split('/'),file=parts.pop(),dir=await opfsDir(['twis-loop-deck',...parts]);if(!dir)return false;const h=await dir.getFileHandle(file,{create:true}),w=await h.createWritable();await w.write(data);await w.close();return true;}catch(e){console.warn('OPFS write',e);return false;}}
@@ -220,13 +219,52 @@ async function restoreAudio(){
   const imp=await opfsRead('imports/current.bin');
   if(imp)try{state.importBuffer=await c.decodeAudioData(imp.slice(0));state.importFile=imp;drawWave();$('#ldDur').textContent=formatTime(state.importBuffer.duration);}catch(e){console.warn('Import restore',e);}
 }
+async function clearSession({purgeLegacy=true}={}){
+  stop();
+  state.barActions.length=0;
+  state.pattern.forEach(r=>r.fill(0));
+  state.ratchets.forEach(r=>r.fill(1));
+  state.recordTarget=-1;state.pendingCapture=null;
+  state.loops.forEach((l,i)=>{
+    try{l.source?.stop();}catch{}
+    l.buffer=null;l.source=null;l.playing=false;l.recording=false;l.armed=false;l.undo=null;l.startTime=0;
+    try{if(alignLoopMachine(i).state!=='EMPTY')loopTransition(i,'CLEAR');}catch{}
+  });
+  state.importBuffer=null;state.importFile=null;state.importName='';state.bpmGuess=0;state.beatOffset=0;state.transients=[];state.slices=[];
+  state.scenes=[null,null,null,null];state.scene=0;
+  if(purgeLegacy){
+    await Promise.all([
+      ...Array.from({length:8},(_,i)=>opfsDelete(`loops/${i}.wav`)),
+      opfsDelete('imports/current.bin'),
+      opfsDelete('imports/current-name.txt')
+    ]);
+    localStorage.removeItem('twisSimpleAuto');
+    for(let i=0;i<4;i++)localStorage.removeItem(`twisLoopScene${i}`);
+    localStorage.twisLoopDeckV2=JSON.stringify({latencyOffsetMs:state.latencyOffsetMs,syncMode:state.syncMode});
+  }
+  renderLoops();renderSeq();drawWave();
+  const dur=$('#ldDur'),guess=$('#ldGuess'),slices=$('#ldSlicesN');
+  if(dur)dur.textContent='0:00';if(guess)guess.textContent='—';if(slices)slices.textContent='0';
+  status('Session cleared. Nothing recorded or imported is saved for next time.');
+}
+async function purgeLegacyAutosaves(){
+  if(localStorage.twisEphemeralLoopsV1==='1')return;
+  await Promise.all([
+    ...Array.from({length:8},(_,i)=>opfsDelete(`loops/${i}.wav`)),
+    opfsDelete('imports/current.bin'),
+    opfsDelete('imports/current-name.txt')
+  ]);
+  localStorage.removeItem('twisSimpleAuto');
+  for(let i=0;i<4;i++)localStorage.removeItem(`twisLoopScene${i}`);
+  localStorage.twisEphemeralLoopsV1='1';
+}
 function sceneData(){return {bpm:state.bpm,pattern:state.pattern,ratchets:state.ratchets,loopPlay:state.loops.map(x=>x.playing)};}
 function saveScene(i){state.scenes[i]=JSON.parse(JSON.stringify(sceneData()));localStorage.setItem(`twisLoopScene${i}`,JSON.stringify(state.scenes[i]));status(`Scene ${i+1} saved.`);}
 function loadScene(i){let s=state.scenes[i];if(!s){try{s=JSON.parse(localStorage.getItem(`twisLoopScene${i}`));}catch{}}if(!s)return saveScene(i);state.bpm=s.bpm||state.bpm;state.pattern=s.pattern||state.pattern;state.ratchets=s.ratchets||state.ratchets;$('#ldBpm').value=state.bpm;renderSeq();state.loops.forEach((l,k)=>{if(s.loopPlay?.[k]&&!l.playing&&l.buffer)startLoop(k,true);if(!s.loopPlay?.[k]&&l.playing)toggleLoop(k);});state.scene=i;$$('.ld-scene').forEach((b,k)=>b.classList.toggle('active',k===i));status(`Scene ${i+1} launched.`);}
 function setBpm(v){state.bpm=clamp(Math.round(Number(v)||100),40,240);clock().setBpm(state.bpm,state.ctx?.currentTime);$('#ldBpm').value=state.bpm;saveMeta();}
 function tapTempo(){const n=performance.now();state.tap=state.tap.filter(t=>n-t<2500);state.tap.push(n);if(state.tap.length>1){const gaps=state.tap.slice(1).map((t,i)=>t-state.tap[i]),avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;setBpm(60000/avg);}if(navigator.vibrate)navigator.vibrate(8);}
-function saveMeta(){localStorage.twisLoopDeckV2=JSON.stringify({bpm:state.bpm,pattern:state.pattern,ratchets:state.ratchets,bars:state.loops.map(l=>l.bars),latencyOffsetMs:state.latencyOffsetMs,syncMode:state.syncMode});}
-function loadMeta(){try{const m=JSON.parse(localStorage.twisLoopDeckV2||'{}');if(m.bpm)state.bpm=m.bpm;if(m.pattern)state.pattern=m.pattern;if(m.ratchets)state.ratchets=m.ratchets;if(m.bars)m.bars.forEach((v,i)=>state.loops[i].bars=v);if(Number.isFinite(m.latencyOffsetMs))state.latencyOffsetMs=m.latencyOffsetMs;if(m.syncMode)state.syncMode=m.syncMode;}catch{}}
+function saveMeta(){localStorage.twisLoopDeckV2=JSON.stringify({latencyOffsetMs:state.latencyOffsetMs,syncMode:state.syncMode});}
+function loadMeta(){try{const m=JSON.parse(localStorage.twisLoopDeckV2||'{}');if(Number.isFinite(m.latencyOffsetMs))state.latencyOffsetMs=m.latencyOffsetMs;if(m.syncMode)state.syncMode=m.syncMode;}catch{}}
 function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);}
 function captureMix(){if(state.mixRecorder){state.mixRecorder.stop();return;}try{state.mixChunks=[];state.mixRecorder=new MediaRecorder(state.streamDest.stream);state.mixRecorder.ondataavailable=e=>e.data.size&&state.mixChunks.push(e.data);state.mixRecorder.onstop=()=>{const blob=new Blob(state.mixChunks,{type:state.mixRecorder.mimeType});download(blob,`twis-loop-deck-${Date.now()}.webm`);state.mixRecorder=null;$('#ldMixRec').textContent='CAPTURE MIX';status('Mix captured locally.');};state.mixRecorder.start();$('#ldMixRec').textContent='STOP + EXPORT';status('Capturing master mix…');}catch{status('Mix capture unsupported here.');}}
 function stutter(div,on){if(!state.delay)return;const now=audio().currentTime;state.delay.delayTime.setTargetAtTime((60/state.bpm)*(4/div),now,.01);state.delayFeedback?.gain.setTargetAtTime(on?.34:0,now,.02);state.delayWet?.gain.setTargetAtTime(on?.28:0,now,.02);if(on){state.filter.frequency.setTargetAtTime(4200,now,.01);}else state.filter.frequency.setTargetAtTime(Number($('#ldCutoff')?.value||18000),now,.04);}
@@ -274,8 +312,8 @@ function health(){
 }
 loadMeta();clock().setBpm(state.bpm);
 window.TWIS_LOOP_DECK={
-  open:async()=>{buildUI();$('#ldBpm').value=state.bpm;status('Tap PLAY or a pad to unlock audio and restore local session audio.');},
+  open:async()=>{buildUI();$('#ldBpm').value=state.bpm;status('Fresh session. Recordings and imports are temporary unless you explicitly export them.');purgeLegacyAutosaves().catch(()=>{});},
   state,analyzeLocal,health,
-  commands:{play,stop:stopAll,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
+  commands:{play,stop:stopAll,clearSession,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
 };
 })();

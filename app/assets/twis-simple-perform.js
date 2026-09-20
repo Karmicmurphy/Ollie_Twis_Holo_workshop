@@ -118,16 +118,16 @@ async function playSet(){
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
   status('SET LIVE · kick + bass + pad first. Percussion builds in, not a metronome.');
 }
-function stopClear(){
+async function stopClear(){
   autoMixToken++;
   active.fill(false);applyAll();
-  window.TWIS_LOOP_DECK?.commands?.stop?.();
+  await window.TWIS_LOOP_DECK?.commands?.clearSession?.({purgeLegacy:true});
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY SET';
   echoOn=false;washOn=false;buildBarsLeft=0;
   window.TWIS_LOOP_DECK?.commands?.setEcho?.(false);
   window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
   q('#simpleEcho')?.classList.remove('active');q('#simpleWash')?.classList.remove('active');q('#simpleBuild')?.classList.remove('active');
-  status('Stopped cleanly. Sounds and saved sessions are still here.');saveAuto();
+  status('CLEARED. No loop, import, pattern, or auto-session will come back on PLAY.');
 }
 function togglePlaySet(){const s=state();if(s?.playing)stopClear();else playSet();}
 function buildStep(){
@@ -180,8 +180,8 @@ async function loadSession(name){const x=sessionStore().find(v=>v.name===name);i
 function deleteSession(name){saveSessions(sessionStore().filter(x=>x.name!==name));renderSessionList();}
 function renderSessionList(){const box=q('#simpleSessions');if(!box)return;const a=sessionStore();box.innerHTML=a.length?a.map(x=>'<div class="simple-session"><button data-load-session="'+esc(x.name)+'">'+esc(x.name)+'</button><button class="trash" data-del-session="'+esc(x.name)+'">×</button></div>').join(''):'<p class="simple-muted">No saved sessions yet.</p>';qa('[data-load-session]').forEach(b=>b.onclick=()=>loadSession(b.dataset.loadSession));qa('[data-del-session]').forEach(b=>b.onclick=()=>deleteSession(b.dataset.delSession));}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function saveAuto(){localStorage.twisSimpleAuto=JSON.stringify({packName,energy,active,bpm:state()?.bpm||124});}
-function restoreAuto(){let x={};try{x=JSON.parse(localStorage.twisSimpleAuto||'{}')}catch{};packName=packs[x.packName]?x.packName:'DEEP MELODIC HOUSE';energy=Number.isFinite(x.energy)?x.energy:.52;active=Array.isArray(x.active)?x.active.slice(0,8):Array(8).fill(false);const er=q('#simpleEnergy');if(er)er.value=String(energy);if(x.bpm)setBpm(x.bpm);applyAll();paintPads();}
+function saveAuto(){}
+function restoreAuto(){packName='DEEP MELODIC HOUSE';energy=.52;active=Array(8).fill(false);const er=q('#simpleEnergy');if(er)er.value=String(energy);applyAll();paintPads();}
 async function customSound(roleIndex,file){if(!file)return;const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadFileToPad)return status('Sound rack is not ready.');const ok=await api.loadFileToPad(roleIndex,file);if(!ok)return;await opfsWrite('simple-sounds/'+roleIndex+'.audio',new Uint8Array(await file.arrayBuffer()));localStorage.setItem('twisSimpleSound'+roleIndex,JSON.stringify({name:file.name,type:file.type||''}));status(file.name+' is now your '+roles[roleIndex]+' sound.');}
 async function restoreCustomSounds(){const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadArrayBufferToPad)return;for(let i=0;i<8;i++){let meta;try{meta=JSON.parse(localStorage.getItem('twisSimpleSound'+i)||'null')}catch{};if(!meta)continue;const f=await opfsRead('simple-sounds/'+i+'.audio');if(f)await api.loadArrayBufferToPad(i,f.buffer,meta.name,meta.type);}}
 function openDrawer(which){q('#simpleDrawer')?.classList.add('open');qa('.simple-drawer-panel').forEach(x=>x.hidden=x.dataset.panel!==which);if(which==='sessions')renderSessionList();}
@@ -213,7 +213,7 @@ function build(){
     '<div class="simple-grid">'+roles.map((r,i)=>'<button class="simple-role" data-role="'+i+'">'+r+'</button>').join('')+'</div>'+
     '<div class="simple-info"><div><b id="simpleBpm">124 BPM</b>TEMPO</div><div><b id="simpleKey">D MIN</b>KEY</div><div><b>1 BAR</b>MASTER QUANTIZATION</div></div>'+
     '<div class="simple-livefx"><button id="simpleBuild">BUILD 4</button><button id="simpleDrop">DROP</button><button id="simpleEcho">ECHO</button><button id="simpleWash">WASH</button><button id="simpleVocalHit">VOCAL HIT</button></div>'+
-    '<div class="simple-actions"><button class="simple-ghost" id="simpleGhost">👻 GHOST — CATCH THAT</button><div class="simple-row"><button class="simple-fuck" id="simpleFuck">FUCK IT</button><button class="simple-stop" id="simpleStop">STOP / CLEAR</button></div><button class="simple-undo" id="simpleUndo">UNDO THAT SHIT</button></div>'+
+    '<div class="simple-actions"><button class="simple-ghost" id="simpleGhost">👻 GHOST — CATCH THAT</button><div class="simple-row"><button class="simple-fuck" id="simpleFuck">FUCK IT</button><button class="simple-stop" id="simpleStop">CLEAR EVERYTHING</button></div><button class="simple-undo" id="simpleUndo">UNDO THAT SHIT</button></div>'+
     '<div class="simple-bottom"><div class="simple-packrow"><select id="simplePack">'+Object.keys(packs).map(n=>'<option>'+n+'</option>').join('')+'</select><button id="simpleSound">+ MY SOUND</button><button id="simpleSaveLoad">SAVE / LOAD</button></div><div class="simple-energy"><span>DEEP</span><input id="simpleEnergy" type="range" min="0" max="1" step=".01" value=".52"><span>DRIVE · <b id="simpleEnergyV">52%</b></span></div></div>'+
     '<div id="simpleStatus" class="simple-status">Loading local performance engine…</div></div>';
   const oldStatus=body.querySelector('#ldStatus');body.insertBefore(page,oldStatus||null);

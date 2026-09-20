@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v18-sonic-salvage";
+const CACHE_NAME = "twis-holo-workshop-v19-ephemeral-loops";
 const APP_SHELL = [
   "./",
   "./index.html",
