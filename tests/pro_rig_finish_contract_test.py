@@ -28,9 +28,14 @@ assert "./assets/samples/twis/perc-02.wav" in sound
 assert "INTRO:{active:[1,1,0,0,1,0,0,0]" in simple
 assert "DEEP:{active:[1,1,0,1,1,1,0,0]" in simple
 assert "startProfessionalArc" in simple
-assert "HATS:{deep:[0,0,.18,0" in simple
+assert "HATS:{deep:[0,0,.34,0" in simple
 assert "FORMANT VOICE" in sound
 assert "performanceRate" in engine
+assert "function proBass" in engine
+assert "function proPad" in engine
+assert "function proLead" in engine
+assert "triggerPerformanceSynth" in engine
+assert "stepSec()*.08" in engine
 assert "KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL" not in simple  # roles are explicit array, not one collapsed sound
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw

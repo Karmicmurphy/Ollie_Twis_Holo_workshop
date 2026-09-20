@@ -117,7 +117,17 @@ function scheduleAhead(){
   while(state.scheduledUntil<limit){
     const s=state.step%16,t=state.scheduledUntil;
     if(s===0&&state.barActions.length){const actions=state.barActions.splice(0);for(const fn of actions){try{fn(t);}catch(e){console.warn('bar action failed',e);}}}
-    const phraseBar=Math.floor(state.tickCount/16);for(let p=0;p<16;p++){const v=state.pattern[p][s];if(v){const r=state.ratchets[p][s]||1;for(let k=0;k<r;k++)triggerPad(p,v,t+(stepSec()/r)*k,{step:s,bar:phraseBar});}}
+    const phraseBar=Math.floor(state.tickCount/16);
+    for(let p=0;p<16;p++){
+      const v=state.pattern[p][s];if(!v)continue;
+      const r=state.ratchets[p][s]||1;
+      for(let k=0;k<r;k++){
+        const base=t+(stepSec()/r)*k;
+        const swing=(s%2?stepSec()*.08:0);
+        const human=((p*17+s*11+phraseBar*7)%9-4)*.0007;
+        triggerPad(p,v,base+swing+human,{step:s,bar:phraseBar});
+      }
+    }
     const uiStep=s;setTimeout(()=>paintStep(uiStep),Math.max(0,(t-c.currentTime)*1000));
     state.scheduledUntil+=stepSec();state.step=(state.step+1)%16;state.tickCount++;
   }
@@ -130,6 +140,55 @@ function synthNoise(t,d,v,hp=1000){const c=audio(),b=c.createBuffer(1,Math.ceil(
 function builtin(i,t,v=.8){switch(i){case 0:synthKick(t,v);break;case 1:synthNoise(t,.16,v,1200);synthTone(t,180,.08,v*.22,'triangle');break;case 2:synthNoise(t,.045,v*.55,6500);break;case 3:synthNoise(t,.34,v*.45,5200);break;case 4:synthNoise(t,.14,v*.65,1900);break;case 5:synthTone(t,130,.25,v,'sine');break;case 6:synthTone(t,92,.3,v,'triangle');break;case 7:synthNoise(t,.65,v*.3,350);break;case 8:synthTone(t,65.4,.3,v,'sawtooth');break;case 9:synthTone(t,82.4,.3,v,'square');break;case 10:synthTone(t,43.65,.48,v,'sine');break;case 11:synthTone(t,261.6,.19,v,'triangle');break;case 12:[130.8,164.8,196].forEach(f=>synthTone(t,f,.62,v*.3,'triangle'));break;case 13:synthTone(t,392,.3,v,'sawtooth');break;case 14:synthNoise(t,.42,v*.32,180);break;case 15:synthNoise(t,.5,v*.25,7200);}}
 function microSlice(buf,start,end,fade=.004){const c=audio(),sr=buf.sampleRate,s=Math.max(0,Math.floor(start*sr)),e=Math.min(buf.length,Math.ceil(end*sr)),len=Math.max(1,e-s),out=c.createBuffer(buf.numberOfChannels,len,sr),fn=Math.min(Math.floor(sr*fade),Math.floor(len/2));for(let ch=0;ch<buf.numberOfChannels;ch++){const src=buf.getChannelData(ch),dst=out.getChannelData(ch);for(let i=0;i<len;i++){let g=1;if(fn){if(i<fn)g=i/fn;else if(i>=len-fn)g=(len-i-1)/fn;}dst[i]=(src[s+i]||0)*Math.max(0,g);}}return out;}
 function playBuffer(buf,t=audio().currentTime,loop=false,rate=1,offset=0,gain=.9,pan=0){const c=audio(),s=c.createBufferSource();s.buffer=buf;s.loop=loop;s.playbackRate.value=rate;route(s,gain,pan);s.start(t,offset);return s;}
+function midiHz(m){return 440*Math.pow(2,(m-69)/12);}
+function musicRoleMidi(role,ctx={}){
+  const step=Number(ctx.step)||0,bar=Number(ctx.bar)||0;
+  const progression=[38,34,41,36]; // D2, Bb1, F2, C2
+  if(role==='BASS'){
+    const roots=progression, offsets=[0,0,0,7,0,0,12,0,0,0,7,0,0,10,0,0];
+    return roots[bar%4]+offsets[step%16];
+  }
+  if(role==='PAD')return [50,46,53,48][bar%4];
+  if(role==='MELODY'){
+    const motif=[0,0,62,0,65,0,69,0,0,67,0,65,0,62,0,0];
+    return motif[(step+bar*2)%16]||62;
+  }
+  return 60;
+}
+function proBass(t,v,ctx={}){
+  const c=audio(),m=musicRoleMidi('BASS',ctx),f=midiHz(m),mix=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain();
+  filter.type='lowpass';filter.Q.value=1.45;filter.frequency.setValueAtTime(1450,t);filter.frequency.exponentialRampToValueAtTime(360,t+.22);
+  amp.gain.setValueAtTime(.0001,t);amp.gain.exponentialRampToValueAtTime(Math.max(.02,v*.34),t+.006);amp.gain.exponentialRampToValueAtTime(.0001,t+.34);
+  const o1=c.createOscillator(),o2=c.createOscillator();o1.type='sawtooth';o2.type='square';o1.frequency.value=f;o2.frequency.value=f/2;o2.detune.value=-4;
+  const g1=c.createGain(),g2=c.createGain();g1.gain.value=.72;g2.gain.value=.28;
+  o1.connect(g1).connect(mix);o2.connect(g2).connect(mix);mix.connect(filter).connect(amp).connect(state.master);
+  o1.start(t);o2.start(t);o1.stop(t+.38);o2.stop(t+.38);
+}
+function proPad(t,v,ctx={}){
+  const c=audio(),root=musicRoleMidi('PAD',ctx),chord=[0,3,7,10],sum=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain();
+  filter.type='lowpass';filter.frequency.value=1050;filter.Q.value=.65;
+  amp.gain.setValueAtTime(.0001,t);amp.gain.linearRampToValueAtTime(Math.max(.012,v*.055),t+.16);amp.gain.linearRampToValueAtTime(.0001,t+1.85);
+  chord.forEach((off,j)=>{
+    [-7,7].forEach(det=>{
+      const o=c.createOscillator();o.type='sawtooth';o.frequency.value=midiHz(root+off+12);o.detune.value=det+(j-1.5)*1.5;o.connect(sum);o.start(t);o.stop(t+1.9);
+    });
+  });
+  sum.connect(filter).connect(amp).connect(state.master);
+}
+function proLead(t,v,ctx={}){
+  const c=audio(),m=musicRoleMidi('MELODY',ctx),f=midiHz(m),sum=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain(),delaySend=c.createGain();
+  filter.type='lowpass';filter.Q.value=1.1;filter.frequency.setValueAtTime(2200,t);filter.frequency.exponentialRampToValueAtTime(950,t+.28);
+  amp.gain.setValueAtTime(.0001,t);amp.gain.exponentialRampToValueAtTime(Math.max(.01,v*.12),t+.008);amp.gain.exponentialRampToValueAtTime(.0001,t+.42);
+  [-6,6].forEach(det=>{const o=c.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=det;o.connect(sum);o.start(t);o.stop(t+.46);});
+  sum.connect(filter).connect(amp).connect(state.master);
+  delaySend.gain.value=.12;filter.connect(delaySend).connect(state.delay);
+}
+function triggerPerformanceSynth(role,t,v,ctx){
+  if(role==='BASS'){proBass(t,v,ctx);return true;}
+  if(role==='PAD'){proPad(t,v,ctx);return true;}
+  if(role==='MELODY'){proLead(t,v,ctx);return true;}
+  return false;
+}
 function performanceRate(meta,ctx={}){
   const role=meta?.role;if(!role)return 1;
   const step=Number(ctx.step)||0,bar=Number(ctx.bar)||0,root=Number(meta.rootMidi)||60;
@@ -157,9 +216,10 @@ function performancePan(meta,ctx={}){
 function triggerPad(i,v=.85,t=audio().currentTime,ctx={}){
   const b=$(`.ld-pad[data-pad='${i}']`);
   if(t<=audio().currentTime+.02){b?.classList.add('hit');setTimeout(()=>b?.classList.remove('hit'),90);}
+  const meta=state.padMeta[i]||{};
+  if(meta.performance&&triggerPerformanceSynth(meta.role,t,v,ctx))return;
   const pb=state.padBuffers[i];
   if(pb){
-    const meta=state.padMeta[i]||{};
     let rate=meta.sourceBpm&&state.syncMode==='REPITCH'?state.bpm/meta.sourceBpm:1;
     if(meta.performance)rate*=performanceRate(meta,ctx);
     const gain=v*(Number(meta.gain)||1);
@@ -354,7 +414,7 @@ function setWash(on){
 function stopAll(){stop();}
 function health(){
   return {
-    version:'loop-core-1',playing:state.playing,contextState:state.ctx?.state||'not-started',
+    version:'loop-core-pro-sonic-2',playing:state.playing,contextState:state.ctx?.state||'not-started',
     bpm:state.bpm,step:state.step,tickCount:state.tickCount,startCount:state.startCount,stopCount:state.stopCount,sonicPackState:state.sonicPackState||'LOCAL',
     peak:outputPeak(),transport:clock().snapshot(state.ctx?.currentTime||0),
     roles:state.padMeta.slice(0,8).map((m,i)=>({i,role:m?.role||null,label:m?.label||state.padNames[i],sampled:!!m?.sampled,rootMidi:m?.rootMidi||null})),loops:state.loops.map((l,i)=>({state:alignLoopMachine(i).state,playing:l.playing,hasBuffer:!!l.buffer,recording:l.recording,armed:l.armed}))
