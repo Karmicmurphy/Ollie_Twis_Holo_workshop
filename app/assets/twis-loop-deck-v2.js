@@ -166,7 +166,33 @@ function triggerPad(i,v=.85,t=audio().currentTime,ctx={}){
     playBuffer(pb,t,false,rate,0,gain,performancePan(meta,ctx));
   }else builtin(i,t,v);
 }
-async function ensureMic(){await unlock();if(state.micStream)return true;try{state.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});state.micSource=audio().createMediaStreamSource(state.micStream);await initRecorderWorklet();if(state.recorderNode)state.micSource.connect(state.recorderNode);return true;}catch(e){status('Microphone permission denied or unavailable.');return false;}}
+async function ensureMic(){
+  await unlock();
+  if(state.micStream)return true;
+  try{
+    state.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    state.micSource=audio().createMediaStreamSource(state.micStream);
+    await initRecorderWorklet();
+    if(state.recorderNode)state.micSource.connect(state.recorderNode);
+    paintMicButton();
+    status('MIC ON · recording will use the phone microphone.');
+    return true;
+  }catch(e){status('Microphone permission denied or unavailable.');return false;}
+}
+function disableMic(){
+  if(state.recordTarget>=0)cancelRecord(state.recordTarget);
+  try{state.micSource?.disconnect();}catch{}
+  state.micStream?.getTracks?.().forEach(t=>t.stop());
+  state.micSource=null;state.micStream=null;
+  paintMicButton();
+  status('MIC OFF.');
+}
+async function toggleMic(){if(state.micStream)disableMic();else await ensureMic();}
+function paintMicButton(){
+  const b=$('#ldMicEnable');if(!b)return;
+  const on=!!state.micStream;b.textContent=on?'MIC ON · TAP TO TURN OFF':'MIC OFF · TAP TO TURN ON';
+  b.classList.toggle('active',on);
+}
 function handleRecorderMessage(e){const d=e.data;if(d.type==='complete'&&state.pendingCapture){const p=state.pendingCapture;state.pendingCapture=null;finishCapture(p,d);}}
 function bufferFromWorklet(msg){if(!msg.frames||!msg.channels?.length)return null;const c=audio(),out=c.createBuffer(msg.channels.length,msg.frames,msg.sampleRate);msg.channels.forEach((ab,i)=>out.copyToChannel(new Float32Array(ab),i));return out;}
 function mixBuffers(a,b){const c=audio(),len=Math.max(a.length,b.length),ch=Math.max(a.numberOfChannels,b.numberOfChannels),o=c.createBuffer(ch,len,a.sampleRate);for(let k=0;k<ch;k++){const d=o.getChannelData(k),aa=a.getChannelData(Math.min(k,a.numberOfChannels-1)),bb=b.getChannelData(Math.min(k,b.numberOfChannels-1));for(let i=0;i<len;i++)d[i]=clamp((aa[i]||0)+(bb[i]||0),-1,1);}return o;}
@@ -182,10 +208,31 @@ function cancelRecord(i){const l=state.loops[i],p=state.recorderNode?.parameters
 function cycleBars(i){const vals=[1,2,4,8,16,'FREE'],l=state.loops[i],n=vals[(vals.indexOf(l.bars)+1)%vals.length];l.bars=n;renderLoops();saveMeta();}
 function startLoop(i,quantized=false){const l=state.loops[i];if(!l.buffer)return;try{l.source?.stop();}catch{}const when=state.playing?(quantized?nextGrid('bar'):audio().currentTime+.015):audio().currentTime+.015;let offset=0;if(state.playing&&!quantized){const phase=transportPos(when)%l.buffer.duration;offset=phase;}l.source=playBuffer(l.buffer,when,true,1,offset,l.mute?0:l.volume);if(['EMPTY','ERROR'].includes(alignLoopMachine(i).state))alignLoopMachine(i);if(alignLoopMachine(i).state==='STOPPED')loopTransition(i,'QUEUE_PLAY');if(alignLoopMachine(i).state==='PLAY_QUEUED')loopTransition(i,'PLAY');l.playing=true;l.startTime=when-offset;renderLoops();animateLoops();}
 function toggleLoop(i){const l=state.loops[i];if(!l.buffer)return status(`Loop ${i+1} is empty.`);if(l.playing){try{l.source.stop(nextGrid('beat'));}catch{}l.playing=false;loopTransition(i,'STOP');renderLoops();}else startLoop(i,true);}
-function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=l.buffer;if(alignLoopMachine(i).state!=='EMPTY')loopTransition(i,'CLEAR');l.buffer=null;l.playing=false;deleteLoopFile(i);renderLoops();}
+function clearLoop(i){const l=state.loops[i];try{l.source?.stop();}catch{}l.undo=null;l.buffer=null;l.source=null;l.playing=false;l.recording=false;l.armed=false;loopMachines[i]=new core.LoopStateMachine('EMPTY');l.machineState='EMPTY';deleteLoopFile(i);renderLoops();status(`Loop ${i+1} cleared.`);}
 function undoLoop(i){const l=state.loops[i];if(!l.undo)return;loopTransition(i,'UNDO');const t=l.buffer;l.buffer=l.undo;l.undo=t;loopTransition(i,'UNDO_DONE',{playing:l.playing});renderLoops();}
 function animateLoops(){let any=false;state.loops.forEach((l,i)=>{if(l.playing&&l.buffer){any=true;const p=((audio().currentTime-l.startTime)%l.buffer.duration)/l.buffer.duration;const el=$(`.ld-loop[data-loop='${i}'] .ld-progress span`);if(el)el.style.width=`${p*100}%`;}});if(any)requestAnimationFrame(animateLoops);}
-function renderLoops(){const el=$('#ldLoops');if(!el)return;el.innerHTML=state.loops.map((l,i)=>`<div class="ld-loop ${l.recording?'rec':''} ${l.playing?'playing':''}" data-loop="${i}"><div class="ld-loop-head"><button data-bars="${i}" class="ld-link">LOOP ${i+1}</button><button data-bars="${i}" class="ld-link">${l.bars==='FREE'?'FREE':l.bars+' BAR'}</button></div><div class="ld-progress"><span></span></div><div class="ld-loop-actions"><button data-rec="${i}">${l.recording||l.armed?'■ STOP':'● REC'}</button><button data-lplay="${i}">${l.playing?'■':'▶'}</button><button data-undo="${i}" ${l.undo?'':'disabled'}>UNDO</button><button data-clearloop="${i}">CLR</button></div></div>`).join('');$$('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));$$('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));$$('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));$$('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));$$('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));}
+function renderLoops(){
+  const el=$('#ldLoops');if(!el)return;
+  el.innerHTML=state.loops.map((l,i)=>{
+    const mode=l.recording?'RECORDING':l.armed?'ARMED':l.playing?'PLAYING':l.buffer?'READY':'EMPTY';
+    const dur=l.buffer?`${l.buffer.duration.toFixed(1)}s`:'no audio';
+    return `<div class="ld-loop ${l.recording?'rec':''} ${l.playing?'playing':''}" data-loop="${i}">
+      <div class="ld-loop-head"><strong>LOOP ${i+1} · ${mode}</strong><button data-bars="${i}" class="ld-link">${l.bars==='FREE'?'FREE':l.bars+' BAR'}</button></div>
+      <div class="ld-mini">${dur} · ${l.buffer?'tap PLAY to hear it':'tap REC to capture a new loop'}</div>
+      <div class="ld-progress"><span></span></div>
+      <div class="ld-loop-actions">
+        <button data-rec="${i}">${l.recording||l.armed?'STOP RECORDING':'RECORD'}</button>
+        <button data-lplay="${i}" ${l.buffer?'':'disabled'}>${l.playing?'STOP LOOP':'PLAY LOOP'}</button>
+        <button data-undo="${i}" ${l.undo?'':'disabled'}>UNDO</button>
+        <button data-clearloop="${i}" ${l.buffer||l.undo?'':'disabled'}>CLEAR LOOP</button>
+      </div></div>`;
+  }).join('');
+  $('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));
+  $('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));
+  $('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));
+  $('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));
+  $('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));
+}
 function renderPads(){const el=$('#ldPads');if(!el)return;el.innerHTML=state.padNames.map((n,i)=>`<button class="ld-pad ${state.padBuffers[i]?'loaded':''}" data-pad="${i}"><b>${i+1}</b><small>${state.padMeta[i]?.label||n}</small></button>`).join('');$$('.ld-pad').forEach(b=>{b.onpointerdown=e=>{unlock();triggerPad(+b.dataset.pad,clamp(e.pressure||.82,.2,1));};b.oncontextmenu=e=>e.preventDefault();});}
 function cycleStep(p,s){const levels=[0,.5,.75,1],cur=state.pattern[p][s],idx=levels.findIndex(x=>x===cur);state.pattern[p][s]=levels[(idx+1)%levels.length];renderSeq();saveMeta();}
 function renderSeq(){const el=$('#ldSeq');if(!el)return;el.innerHTML=state.padNames.map((n,p)=>`<div class="ld-rowlabel">${p+1} ${state.padMeta[p]?.label||n}</div><div class="ld-seq">${Array.from({length:16},(_,s)=>{const v=state.pattern[p][s],r=state.ratchets[p][s];return `<button class="ld-step ${v?'on':''}" style="opacity:${v?(.35+.65*v):1}" data-row="${p}" data-step="${s}" title="velocity ${v} ratchet ${r}">${r>1?r:''}</button>`}).join('')}</div>`).join('');$$('.ld-step').forEach(b=>{let timer;b.onpointerdown=()=>{timer=setTimeout(()=>{const p=+b.dataset.row,s=+b.dataset.step;state.ratchets[p][s]=state.ratchets[p][s]===1?2:state.ratchets[p][s]===2?4:1;renderSeq();saveMeta();timer=null;},500)};b.onpointerup=()=>{if(timer){clearTimeout(timer);cycleStep(+b.dataset.row,+b.dataset.step);}};});}
@@ -228,21 +275,23 @@ async function clearSession({purgeLegacy=true}={}){
   state.loops.forEach((l,i)=>{
     try{l.source?.stop();}catch{}
     l.buffer=null;l.source=null;l.playing=false;l.recording=false;l.armed=false;l.undo=null;l.startTime=0;
-    try{if(alignLoopMachine(i).state!=='EMPTY')loopTransition(i,'CLEAR');}catch{}
+    loopMachines[i]=new core.LoopStateMachine('EMPTY');l.machineState='EMPTY';
   });
   state.importBuffer=null;state.importFile=null;state.importName='';state.bpmGuess=0;state.beatOffset=0;state.transients=[];state.slices=[];
   state.scenes=[null,null,null,null];state.scene=0;
   if(purgeLegacy){
     await Promise.all([
       ...Array.from({length:8},(_,i)=>opfsDelete(`loops/${i}.wav`)),
+      ...Array.from({length:8},(_,i)=>opfsDelete(`simple-sounds/${i}.audio`)),
       opfsDelete('imports/current.bin'),
       opfsDelete('imports/current-name.txt')
     ]);
-    localStorage.removeItem('twisSimpleAuto');
+    localStorage.removeItem('twisSimpleAuto');localStorage.removeItem('twisSimpleSessions');
+    for(let i=0;i<8;i++)localStorage.removeItem(`twisSimpleSound${i}`);
     for(let i=0;i<4;i++)localStorage.removeItem(`twisLoopScene${i}`);
     localStorage.twisLoopDeckV2=JSON.stringify({latencyOffsetMs:state.latencyOffsetMs,syncMode:state.syncMode});
   }
-  renderLoops();renderSeq();drawWave();
+  disableMic();renderLoops();renderSeq();drawWave();
   const dur=$('#ldDur'),guess=$('#ldGuess'),slices=$('#ldSlicesN');
   if(dur)dur.textContent='0:00';if(guess)guess.textContent='—';if(slices)slices.textContent='0';
   status('Session cleared. Nothing recorded or imported is saved for next time.');
@@ -254,7 +303,8 @@ async function purgeLegacyAutosaves(){
     opfsDelete('imports/current.bin'),
     opfsDelete('imports/current-name.txt')
   ]);
-  localStorage.removeItem('twisSimpleAuto');
+  localStorage.removeItem('twisSimpleAuto');localStorage.removeItem('twisSimpleSessions');
+  for(let i=0;i<8;i++)localStorage.removeItem(`twisSimpleSound${i}`);
   for(let i=0;i<4;i++)localStorage.removeItem(`twisLoopScene${i}`);
   localStorage.twisEphemeralLoopsV1='1';
 }
@@ -270,14 +320,14 @@ function captureMix(){if(state.mixRecorder){state.mixRecorder.stop();return;}try
 function stutter(div,on){if(!state.delay)return;const now=audio().currentTime;state.delay.delayTime.setTargetAtTime((60/state.bpm)*(4/div),now,.01);state.delayFeedback?.gain.setTargetAtTime(on?.34:0,now,.02);state.delayWet?.gain.setTargetAtTime(on?.28:0,now,.02);if(on){state.filter.frequency.setTargetAtTime(4200,now,.01);}else state.filter.frequency.setTargetAtTime(Number($('#ldCutoff')?.value||18000),now,.04);}
 async function midiEnable(){if(!navigator.requestMIDIAccess)return status('Web MIDI is not available in this browser.');try{state.midi=await navigator.requestMIDIAccess();for(const input of state.midi.inputs.values())input.onmidimessage=e=>{const [st,n,v]=e.data;if((st&0xf0)===0x90&&v){const pad=n-36;if(pad>=0&&pad<16)triggerPad(pad,v/127);}if((st&0xf0)===0xb0&&n===1){const hz=120*Math.pow(18000/120,v/127);state.filter.frequency.setTargetAtTime(hz,audio().currentTime,.01);$('#ldCutoff').value=hz;}};status('MIDI enabled · notes 36–51 → pads · mod wheel → filter.');}catch{status('MIDI permission not granted.');}}
 function buildUI(){if($('#twisLoopDeck'))return;const host=document.createElement('div');host.id='twisLoopDeck';host.className='twis-loopdeck';host.innerHTML=`<div class="ld-top"><div class="ld-brand">TWIS LOOP DECK <small>V2 · SALVAGE ENGINE</small></div><div class="ld-transport"><button id="ldPlay" class="ld-btn ld-play">▶</button><div><input id="ldBpm" class="ld-bpm" type="number" min="40" max="240" value="${state.bpm}"><div class="ld-mini">BPM</div></div><button id="ldTap" class="ld-btn">TAP</button></div><button id="ldClose" class="ld-close">×</button></div><div class="ld-body">
-<div class="ld-page active" data-page="loop"><div class="ld-section"><h3>LIVE LOOPS · QUANTIZED + PHASE LOCKED</h3><div class="ld-toolbar"><button id="ldMicEnable" class="ld-btn primary">ENABLE MIC</button><button id="ldMixRec" class="ld-btn">CAPTURE MIX</button><button id="ldMidi" class="ld-btn">MIDI</button></div><div class="ld-scenes">${[0,1,2,3].map(i=>`<button class="ld-scene ${i===0?'active':''}" data-scene="${i}">S${i+1}</button>`).join('')}</div><div class="ld-loops" id="ldLoops"></div><div class="ld-mixrow"><span>REC OFFSET</span><input id="ldOffset" type="range" min="0" max="250" step="1" value="${state.latencyOffsetMs}"><span id="ldOffsetV">${state.latencyOffsetMs}ms</span></div></div></div>
+<div class="ld-page active" data-page="loop"><div class="ld-section"><h3>LIVE LOOPS · QUANTIZED + PHASE LOCKED</h3><div class="ld-toolbar"><button id="ldMicEnable" class="ld-btn primary">MIC OFF · TAP TO TURN ON</button><button id="ldMixRec" class="ld-btn">CAPTURE MIX</button><button id="ldMidi" class="ld-btn">MIDI</button></div><div class="ld-scenes">${[0,1,2,3].map(i=>`<button class="ld-scene ${i===0?'active':''}" data-scene="${i}">S${i+1}</button>`).join('')}</div><div class="ld-loops" id="ldLoops"></div><div class="ld-mixrow"><span>REC OFFSET</span><input id="ldOffset" type="range" min="0" max="250" step="1" value="${state.latencyOffsetMs}"><span id="ldOffsetV">${state.latencyOffsetMs}ms</span></div></div></div>
 <div class="ld-page" data-page="pads"><div class="ld-section"><h3>16-PAD KIT</h3><div class="ld-grid" id="ldPads"></div></div></div>
 <div class="ld-page" data-page="seq"><div class="ld-section"><h3>SEQUENCER · TAP=VELOCITY · HOLD=RATCHET</h3><div class="ld-toolbar"><button id="ldSeqClear" class="ld-btn danger">CLEAR</button><button id="ldSeqRandom" class="ld-btn">RANDOM</button></div><div id="ldSeq"></div></div></div>
 <div class="ld-page" data-page="import"><div class="ld-section"><h3>SMART LOOP LAB · LOCAL ONLY</h3><div class="ld-import"><input id="ldFile" type="file" accept="audio/*"><p>Song stays on this device. OPFS persistence when supported.</p></div><canvas id="ldWave" class="ld-wave" width="900" height="220"></canvas><div class="ld-stat"><div><b id="ldDur">0:00</b><span>DURATION</span></div><div><b id="ldGuess">—</b><span>BPM</span></div><div><b id="ldSlicesN">0</b><span>SLICES</span></div></div><div class="ld-toolbar"><button id="ldAnalyze" class="ld-btn primary">ANALYZE</button><select id="ldSliceMode"><option>TRANSIENTS</option><option>1 BEAT</option><option>2 BEATS</option><option selected>1 BAR</option><option>2 BARS</option><option>4 BARS</option><option>EQUAL 8</option><option>EQUAL 16</option></select><button id="ldBuildKit" class="ld-btn">BUILD KIT</button></div><div class="ld-slices" id="ldSlices"></div></div></div>
 <div class="ld-page" data-page="mix"><div class="ld-section"><h3>PERFORMANCE</h3><div class="ld-mixrow"><span>MASTER</span><input id="ldMaster" type="range" min="0" max="1.2" step=".01" value="${state.masterVolume}"><span id="ldMasterV">${Math.round(state.masterVolume*100)}%</span></div><div class="ld-mixrow"><span>CUTOFF</span><input id="ldCutoff" type="range" min="120" max="18000" step="10" value="18000"><span>LPF</span></div><div class="ld-xy" id="ldXY"><div class="ld-xy-dot" id="ldXYDot"></div></div><div class="ld-toolbar">${[2,4,8,16].map(x=>`<button class="ld-btn" data-stutter="${x}">1/${x}</button>`).join('')}</div><p class="ld-mini">Current tempo-fit for imported slices: REPITCH. Pitch-preserving Signalsmith module is rights-clean and staged next, but this control does not pretend it is active yet.</p></div></div>
 <div id="ldStatus" class="ld-status">Tap PLAY or a pad to unlock audio.</div></div><div class="ld-tabs">${['loop','pads','seq','import','mix'].map((n,i)=>`<button class="ld-tab ${i===0?'active':''}" data-tab="${n}">${n.toUpperCase()}</button>`).join('')}</div>`;host.addEventListener('pointerdown',protectStorage,{once:true,capture:true});document.body.appendChild(host);renderPads();renderLoops();renderSeq();bind();}
 function bind(){
-  $('#ldClose').onclick=()=>$('#twisLoopDeck').remove();$('#ldPlay').onclick=()=>state.playing?stop():play();$('#ldBpm').onchange=e=>setBpm(e.target.value);$('#ldTap').onclick=tapTempo;$('#ldMicEnable').onclick=ensureMic;$('#ldMixRec').onclick=captureMix;$('#ldMidi').onclick=midiEnable;
+  $('#ldClose').onclick=()=>$('#twisLoopDeck').remove();$('#ldPlay').onclick=()=>state.playing?stop():play();$('#ldBpm').onchange=e=>setBpm(e.target.value);$('#ldTap').onclick=tapTempo;$('#ldMicEnable').onclick=toggleMic;$('#ldMixRec').onclick=captureMix;$('#ldMidi').onclick=midiEnable;
   $$('.ld-tab').forEach(b=>b.onclick=()=>{$$('.ld-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.ld-page').forEach(x=>x.classList.toggle('active',x.dataset.page===b.dataset.tab));});
   $$('.ld-scene').forEach((b,i)=>{let t;b.onpointerdown=()=>t=setTimeout(()=>{saveScene(i);t=null;},650);b.onpointerup=()=>{if(t){clearTimeout(t);loadScene(i);}};});
   $('#ldOffset').oninput=e=>{state.latencyOffsetMs=Number(e.target.value);$('#ldOffsetV').textContent=`${state.latencyOffsetMs}ms`;localStorage.twisLoopOffsetMs=state.latencyOffsetMs;saveMeta();};
@@ -314,6 +364,6 @@ loadMeta();clock().setBpm(state.bpm);
 window.TWIS_LOOP_DECK={
   open:async()=>{buildUI();$('#ldBpm').value=state.bpm;status('Fresh session. Recordings and imports are temporary unless you explicitly export them.');purgeLegacyAutosaves().catch(()=>{});},
   state,analyzeLocal,health,
-  commands:{play,stop:stopAll,clearSession,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
+  commands:{play,stop:stopAll,clearSession,toggleMic,disableMic,setBpm,triggerPad,nextGrid,barSec,queueBarAction,setEcho,setWash,stutter}
 };
 })();
