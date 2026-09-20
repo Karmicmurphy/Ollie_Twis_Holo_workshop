@@ -5,14 +5,14 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const uid=()=>`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const PAD_NAMES=['KICK','SNARE','HAT','OPEN','CLAP','TOM','LOW TOM','FX','BASS','BASS 2','SUB','PLUCK','CHORD','LEAD','NOISE','RIDE'];
 const state={
-  ctx:null, master:null, filter:null, comp:null, delay:null, delayFeedback:null, delayWet:null, outputGate:null, analyser:null, meterBuffer:null, streamDest:null,
+  ctx:null, master:null, subsonic:null, filter:null, comp:null, delay:null, delayFeedback:null, delayWet:null, outputGate:null, analyser:null, meterBuffer:null, streamDest:null,
   bpm:100, playing:false, origin:0, step:0, worker:null, scheduledUntil:0, lookAhead:.14, tickCount:0, startCount:0, stopCount:0, barActions:[],
   pattern:Array.from({length:16},()=>Array(16).fill(0)), ratchets:Array.from({length:16},()=>Array(16).fill(1)),
   padBuffers:Array(16).fill(null), padMeta:Array(16).fill(null), padNames:[...PAD_NAMES],
   loops:Array.from({length:8},()=>({id:uid(),buffer:null,source:null,playing:false,recording:false,armed:false,bars:4,volume:.9,mute:false,solo:false,undo:null,startTime:0})),
   micStream:null,micSource:null,recorderNode:null,recorderSilent:null,recordTarget:-1,pendingCapture:null,
   importBuffer:null,importFile:null,importName:'',bpmGuess:0,beatOffset:0,transients:[],slices:[],sliceMode:'1 BAR',syncMode:'REPITCH',
-  masterVolume:.9, scene:0, scenes:[null,null,null,null], tap:[], latencyOffsetMs:Number(localStorage.twisLoopOffsetMs||0),
+  masterVolume:.78, scene:0, scenes:[null,null,null,null], tap:[], latencyOffsetMs:Number(localStorage.twisLoopOffsetMs||0),
   mixRecorder:null,mixChunks:[], midi:null, stretchReady:false, stretchLoading:false, storageOK:false, storagePersistent:false, restoreDone:false, restorePromise:null
 };
 const core=window.TWIS_LOOP_CORE;
@@ -44,17 +44,19 @@ function audio(){
   const C=window.AudioContext||window.webkitAudioContext;
   state.ctx=new C({latencyHint:'interactive'});
   state.master=state.ctx.createGain(); state.master.gain.value=state.masterVolume;
-  state.filter=state.ctx.createBiquadFilter(); state.filter.type='lowpass'; state.filter.frequency.value=18000; state.filter.Q.value=.7;
+  state.subsonic=state.ctx.createBiquadFilter();state.subsonic.type='highpass';state.subsonic.frequency.value=28;state.subsonic.Q.value=.55;
+  state.filter=state.ctx.createBiquadFilter(); state.filter.type='lowpass'; state.filter.frequency.value=18000; state.filter.Q.value=.65;
   state.delay=state.ctx.createDelay(2); state.delay.delayTime.value=.125;
   state.delayFeedback=state.ctx.createGain();state.delayFeedback.gain.value=0;state.delay.connect(state.delayFeedback);state.delayFeedback.connect(state.delay);
   state.delayWet=state.ctx.createGain();state.delayWet.gain.value=0;state.delay.connect(state.delayWet);
-  state.comp=state.ctx.createDynamicsCompressor();state.comp.threshold.value=-12;state.comp.ratio.value=4;state.comp.attack.value=.003;state.comp.release.value=.18;
+  state.comp=state.ctx.createDynamicsCompressor();state.comp.threshold.value=-8;state.comp.knee.value=12;state.comp.ratio.value=2.2;state.comp.attack.value=.008;state.comp.release.value=.18;
   state.outputGate=state.ctx.createGain();state.outputGate.gain.value=0;
   state.analyser=state.ctx.createAnalyser();state.analyser.fftSize=256;state.meterBuffer=new Float32Array(state.analyser.fftSize);
   state.streamDest=state.ctx.createMediaStreamDestination();
-  state.master.connect(state.filter);state.filter.connect(state.comp);
+  state.master.connect(state.subsonic);state.subsonic.connect(state.filter);state.filter.connect(state.comp);
   state.master.connect(state.delay);state.delayWet.connect(state.comp);
   state.comp.connect(state.outputGate);state.outputGate.connect(state.analyser);state.analyser.connect(state.ctx.destination);state.comp.connect(state.streamDest);
+  window.TWIS_SAMPLED_ROLE_ENGINE?.configure?.({context:state.ctx,output:state.master,onStatus:status});
   initClock(); initRecorderWorklet();
   return state.ctx;
 }
@@ -109,6 +111,7 @@ function stop(){
       if(alignLoopMachine(i).state==='PLAYING')loopTransition(i,'STOP');
     }
   });
+  window.TWIS_SAMPLED_ROLE_ENGINE?.stopAll?.();
   if(state.outputGate)state.outputGate.gain.setTargetAtTime(0,now,.005);
   state.stopCount++;$('#ldPlay').textContent='▶';document.querySelectorAll('.ld-step.now').forEach(x=>x.classList.remove('now'));renderLoops();
 }
@@ -155,76 +158,37 @@ function musicRoleMidi(role,ctx={}){
   }
   return 60;
 }
-function proBass(t,v,ctx={}){
-  const c=audio(),m=musicRoleMidi('BASS',ctx),f=midiHz(m),mix=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain();
-  filter.type='lowpass';filter.Q.value=1.45;filter.frequency.setValueAtTime(1450,t);filter.frequency.exponentialRampToValueAtTime(360,t+.22);
-  amp.gain.setValueAtTime(.0001,t);amp.gain.exponentialRampToValueAtTime(Math.max(.02,v*.34),t+.006);amp.gain.exponentialRampToValueAtTime(.0001,t+.34);
-  const o1=c.createOscillator(),o2=c.createOscillator();o1.type='sawtooth';o2.type='square';o1.frequency.value=f;o2.frequency.value=f/2;o2.detune.value=-4;
-  const g1=c.createGain(),g2=c.createGain();g1.gain.value=.72;g2.gain.value=.28;
-  o1.connect(g1).connect(mix);o2.connect(g2).connect(mix);mix.connect(filter).connect(amp).connect(state.master);
-  o1.start(t);o2.start(t);o1.stop(t+.38);o2.stop(t+.38);
-}
-function proPad(t,v,ctx={}){
-  const c=audio(),root=musicRoleMidi('PAD',ctx),chord=[0,3,7,10],sum=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain();
-  filter.type='lowpass';filter.frequency.value=1050;filter.Q.value=.65;
-  amp.gain.setValueAtTime(.0001,t);amp.gain.linearRampToValueAtTime(Math.max(.012,v*.055),t+.16);amp.gain.linearRampToValueAtTime(.0001,t+1.85);
-  chord.forEach((off,j)=>{
-    [-7,7].forEach(det=>{
-      const o=c.createOscillator();o.type='sawtooth';o.frequency.value=midiHz(root+off+12);o.detune.value=det+(j-1.5)*1.5;o.connect(sum);o.start(t);o.stop(t+1.9);
-    });
-  });
-  sum.connect(filter).connect(amp).connect(state.master);
-}
-function proLead(t,v,ctx={}){
-  const c=audio(),m=musicRoleMidi('MELODY',ctx),f=midiHz(m),sum=c.createGain(),filter=c.createBiquadFilter(),amp=c.createGain(),delaySend=c.createGain();
-  filter.type='lowpass';filter.Q.value=1.1;filter.frequency.setValueAtTime(2200,t);filter.frequency.exponentialRampToValueAtTime(950,t+.28);
-  amp.gain.setValueAtTime(.0001,t);amp.gain.exponentialRampToValueAtTime(Math.max(.01,v*.12),t+.008);amp.gain.exponentialRampToValueAtTime(.0001,t+.42);
-  [-6,6].forEach(det=>{const o=c.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=det;o.connect(sum);o.start(t);o.stop(t+.46);});
-  sum.connect(filter).connect(amp).connect(state.master);
-  delaySend.gain.value=.12;filter.connect(delaySend).connect(state.delay);
-}
-function triggerPerformanceSynth(role,t,v,ctx){
-  if(role==='BASS'){proBass(t,v,ctx);return true;}
-  if(role==='PAD'){proPad(t,v,ctx);return true;}
-  if(role==='MELODY'){proLead(t,v,ctx);return true;}
-  return false;
-}
-function performanceRate(meta,ctx={}){
-  const role=meta?.role;if(!role)return 1;
-  const step=Number(ctx.step)||0,bar=Number(ctx.bar)||0,root=Number(meta.rootMidi)||60;
-  let midi=root;
-  if(role==='BASS'){
-    const roots=[38,34,41,36],rootNow=roots[bar%4];
-    const offsets=[0,0,7,0,0,12,7,0,0,0,7,10,0,12,7,0];
-    midi=rootNow+(offsets[step%16]||0);
-  }else if(role==='PAD'){
-    const roots=[50,46,53,48];midi=roots[bar%4];
-  }else if(role==='MELODY'){
-    const motif=[62,65,69,67,65,62,60,0,62,67,69,72,69,67,65,0];
-    midi=motif[(step+bar*2)%16]||root;
-  }
-  return Math.pow(2,(midi-root)/12);
-}
 function performancePan(meta,ctx={}){
-  if(meta?.role==='HATS')return (Number(ctx.step)%4<2?-.18:.18);
-  if(meta?.role==='PERC')return .12;
-  if(meta?.role==='MELODY')return -.12;
-  if(meta?.role==='FX')return .22;
-  if(meta?.role==='VOCAL')return -.08;
+  if(meta?.role==='HATS')return (Number(ctx.step)%4<2?-.14:.14);
+  if(meta?.role==='CLAP')return .04;
+  if(meta?.role==='FX')return .18;
   return 0;
+}
+function sampledDuration(role){
+  if(role==='PAD')return 1.65;
+  if(role==='MELODY')return .42;
+  return .34;
 }
 function triggerPad(i,v=.85,t=audio().currentTime,ctx={}){
   const b=$(`.ld-pad[data-pad='${i}']`);
   if(t<=audio().currentTime+.02){b?.classList.add('hit');setTimeout(()=>b?.classList.remove('hit'),90);}
   const meta=state.padMeta[i]||{};
-  if(meta.performance&&triggerPerformanceSynth(meta.role,t,v,ctx))return;
+  if(meta.performance&&['BASS','PAD','MELODY'].includes(meta.role)){
+    const midi=musicRoleMidi(meta.role,ctx);
+    const ok=window.TWIS_SAMPLED_ROLE_ENGINE?.play?.(meta.role,midi,t,v,sampledDuration(meta.role));
+    return !!ok;
+  }
   const pb=state.padBuffers[i];
   if(pb){
-    let rate=meta.sourceBpm&&state.syncMode==='REPITCH'?state.bpm/meta.sourceBpm:1;
-    if(meta.performance)rate*=performanceRate(meta,ctx);
+    if(meta.performance&&meta.role==='KICK')window.TWIS_SAMPLED_ROLE_ENGINE?.duck?.(t,.54,.15);
+    const rate=meta.sourceBpm&&state.syncMode==='REPITCH'?state.bpm/meta.sourceBpm:1;
     const gain=v*(Number(meta.gain)||1);
     playBuffer(pb,t,false,rate,0,gain,performancePan(meta,ctx));
-  }else builtin(i,t,v);
+    return true;
+  }
+  if(meta.performance)return false;
+  builtin(i,t,v);
+  return true;
 }
 async function ensureMic(){
   await unlock();
@@ -414,9 +378,9 @@ function setWash(on){
 function stopAll(){stop();}
 function health(){
   return {
-    version:'loop-core-pro-sonic-2',playing:state.playing,contextState:state.ctx?.state||'not-started',
+    version:'loop-core-sample-first-3',playing:state.playing,contextState:state.ctx?.state||'not-started',
     bpm:state.bpm,step:state.step,tickCount:state.tickCount,startCount:state.startCount,stopCount:state.stopCount,sonicPackState:state.sonicPackState||'LOCAL',
-    peak:outputPeak(),transport:clock().snapshot(state.ctx?.currentTime||0),
+    peak:outputPeak(),transport:clock().snapshot(state.ctx?.currentTime||0),sampledRoles:window.TWIS_SAMPLED_ROLE_ENGINE?.health?.()||null,
     roles:state.padMeta.slice(0,8).map((m,i)=>({i,role:m?.role||null,label:m?.label||state.padNames[i],sampled:!!m?.sampled,rootMidi:m?.rootMidi||null})),loops:state.loops.map((l,i)=>({state:alignLoopMachine(i).state,playing:l.playing,hasBuffer:!!l.buffer,recording:l.recording,armed:l.armed}))
   };
 }
