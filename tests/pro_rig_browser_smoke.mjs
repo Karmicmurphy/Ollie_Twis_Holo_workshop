@@ -130,12 +130,14 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
   });
   await page.click('#simplePlaySet');
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===false,null,{timeout:3000});
-  await sleep(900);
+  await sleep(300);
   const stoppedPeak=await samplePeak(page,8,80);
   if(stoppedPeak>0.03)throw new Error(label+': STOP leaked measurable output '+stoppedPeak);
 
   h=await health(page);
   if(h.startCount!==7||h.stopCount!==7)throw new Error(label+': duplicate start/stop accounting '+JSON.stringify(h));
+  await page.click('#simpleStop');
+  await page.waitForFunction(()=>window.TWIS_LOOP_DECK.state.loops.every(l=>!l.buffer)&&!localStorage.twisSimpleAuto,null,{timeout:5000});
   const cleared=await page.evaluate(async()=>({
     loopBuffers:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.buffer).length,
     importLoaded:!!window.TWIS_LOOP_DECK.state.importBuffer,
@@ -169,6 +171,7 @@ async function runAdvancedPath(){
   if(loops!==8)throw new Error('advanced: expected 8 loop tracks, got '+loops);
   if(await page.locator('[data-rec]').count()!==8)throw new Error('advanced: recording controls missing');
   if(await page.locator('#ldFile').count()!==1)throw new Error('advanced: import control missing');
+  if(await page.locator('#ldClearAll').count()!==1)throw new Error('advanced: CLEAR ALL LOOPS missing');
   const micText=await page.locator('#ldMicEnable').innerText();
   if(!/MIC OFF/.test(micText))throw new Error('advanced: mic control is not an explicit off/on toggle: '+micText);
   const loopTexts=await page.locator('.ld-loop').allInnerTexts();
