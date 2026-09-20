@@ -3,7 +3,7 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let installed=false, active=Array(8).fill(false), energy=.52, packName='DEEP MELODIC HOUSE', lastGhostLoop=-1;
 const proMode=new URLSearchParams(location.search).get('mode')==='pro';
-let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0;
+let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0,djAuto=false;
 const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
 const packs={
  'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,24]},
@@ -111,15 +111,20 @@ function startProfessionalArc(){
 }
 async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
-  active.fill(false);applyAll();
   await api.play?.();
-  if(!packPrimed){await loadPack(packName,false);await restoreCustomSounds();packPrimed=true;}
-  startProfessionalArc();
-  const b=q('#simplePlaySet');if(b)b.textContent='■ STOP SET';
-  status('SET LIVE · kick + bass + pad first. Percussion builds in, not a metronome.');
+  if(!packPrimed){await loadPack(packName,true);packPrimed=true;}
+  const b=q('#simplePlaySet');if(b)b.textContent='■ STOP';
+  status(active.some(Boolean)?'PLAYING only the layers you turned on.':'TRANSPORT RUNNING · no layer or old loop was auto-started.');
+}
+async function startDjSet(){
+  const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
+  if(!packPrimed){await loadPack(packName,false);packPrimed=true;}
+  await api.play?.();djAuto=true;startProfessionalArc();
+  const b=q('#simplePlaySet');if(b)b.textContent='■ STOP';
+  status('DJ SET running · staged arrangement is ON because you explicitly started it.');
 }
 async function stopClear(){
-  autoMixToken++;
+  autoMixToken++;djAuto=false;
   active.fill(false);applyAll();
   await window.TWIS_LOOP_DECK?.commands?.clearSession?.({purgeLegacy:true});
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY SET';
@@ -127,7 +132,7 @@ async function stopClear(){
   window.TWIS_LOOP_DECK?.commands?.setEcho?.(false);
   window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
   q('#simpleEcho')?.classList.remove('active');q('#simpleWash')?.classList.remove('active');q('#simpleBuild')?.classList.remove('active');
-  status('CLEARED. No loop, import, pattern, or auto-session will come back on PLAY.');
+  packPrimed=false;status('CLEARED. Nothing recorded, imported, custom, or saved will come back on PLAY.');
 }
 function togglePlaySet(){const s=state();if(s?.playing)stopClear();else playSet();}
 function buildStep(){
@@ -183,7 +188,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 function saveAuto(){}
 function restoreAuto(){packName='DEEP MELODIC HOUSE';energy=.52;active=Array(8).fill(false);const er=q('#simpleEnergy');if(er)er.value=String(energy);applyAll();paintPads();}
 async function customSound(roleIndex,file){if(!file)return;const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadFileToPad)return status('Sound rack is not ready.');const ok=await api.loadFileToPad(roleIndex,file);if(!ok)return;await opfsWrite('simple-sounds/'+roleIndex+'.audio',new Uint8Array(await file.arrayBuffer()));localStorage.setItem('twisSimpleSound'+roleIndex,JSON.stringify({name:file.name,type:file.type||''}));status(file.name+' is now your '+roles[roleIndex]+' sound.');}
-async function restoreCustomSounds(){const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadArrayBufferToPad)return;for(let i=0;i<8;i++){let meta;try{meta=JSON.parse(localStorage.getItem('twisSimpleSound'+i)||'null')}catch{};if(!meta)continue;const f=await opfsRead('simple-sounds/'+i+'.audio');if(f)await api.loadArrayBufferToPad(i,f.buffer,meta.name,meta.type);}}
+async function restoreCustomSounds_UNUSED(){const api=window.TWIS_LOOP_SOUND_RACK;if(!api?.loadArrayBufferToPad)return;for(let i=0;i<8;i++){let meta;try{meta=JSON.parse(localStorage.getItem('twisSimpleSound'+i)||'null')}catch{};if(!meta)continue;const f=await opfsRead('simple-sounds/'+i+'.audio');if(f)await api.loadArrayBufferToPad(i,f.buffer,meta.name,meta.type);}}
 function openDrawer(which){q('#simpleDrawer')?.classList.add('open');qa('.simple-drawer-panel').forEach(x=>x.hidden=x.dataset.panel!==which);if(which==='sessions')renderSessionList();}
 function closeDrawer(){q('#simpleDrawer')?.classList.remove('open');}
 function advanced(){document.body.classList.remove('twis-simple-mode');q('#twisLoopDeck')?.classList.remove('simple-mode');qa('.ld-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='loop'));qa('.ld-page').forEach(x=>x.classList.toggle('active',x.dataset.page==='loop'));}
@@ -208,7 +213,7 @@ function build(){
   const sceneHtml=Object.keys(performanceScenes).map(n=>'<button data-performance-scene="'+n+'">'+n+'</button>').join('');
   page.innerHTML='<div class="simple-shell">'+
     '<div class="simple-head"><div><div class="simple-brand">TWIS LOOP DECK</div><div class="simple-title">'+(proMode?'PRO RIG':'PERFORM')+'</div><div class="simple-packline">ONE ENGINE · ONE CLOCK · ONE MUSICAL JOB PER CONTROL</div><div class="simple-modebadge">'+(proMode?'AMPHITHEATER PERFORMANCE SURFACE':'PHONE-FIRST LOOP WORKSTATION')+'</div></div><button class="simple-advanced" id="simpleAdvanced">ADVANCED</button></div>'+
-    '<button class="simple-playset" id="simplePlaySet">▶ PLAY SET</button>'+
+    '<button class="simple-playset" id="simplePlaySet">▶ PLAY / STOP</button><button class="simple-playset" id="simpleDjSet">DJ AUTO SET</button>'+
     '<div class="simple-scenes">'+sceneHtml+'</div>'+
     '<div class="simple-grid">'+roles.map((r,i)=>'<button class="simple-role" data-role="'+i+'">'+r+'</button>').join('')+'</div>'+
     '<div class="simple-info"><div><b id="simpleBpm">124 BPM</b>TEMPO</div><div><b id="simpleKey">D MIN</b>KEY</div><div><b>1 BAR</b>MASTER QUANTIZATION</div></div>'+
@@ -224,7 +229,7 @@ function build(){
 
   tab.onclick=easy;qa('[data-role]').forEach(b=>b.onclick=()=>toggleRole(+b.dataset.role));
   qa('[data-performance-scene]').forEach(b=>b.onclick=()=>queueScene(b.dataset.performanceScene));
-  q('#simpleAdvanced').onclick=advanced;q('#simplePlaySet').onclick=togglePlaySet;
+  q('#simpleAdvanced').onclick=advanced;q('#simplePlaySet').onclick=togglePlaySet;q('#simpleDjSet').onclick=startDjSet;
   q('#simpleBuild').onclick=buildSet;q('#simpleDrop').onclick=dropSet;q('#simpleEcho').onclick=toggleEcho;q('#simpleWash').onclick=toggleWash;q('#simpleVocalHit').onclick=vocalHit;
   q('#simpleGhost').onclick=catchGhost;q('#simpleFuck').onclick=fuckIt;q('#simpleUndo').onclick=undo;q('#simpleStop').onclick=stopClear;
   q('#simplePack').onchange=e=>loadPack(e.target.value);q('#simpleEnergy').oninput=e=>setEnergy(e.target.value);
@@ -241,5 +246,5 @@ async function install(){
     status(proMode?'Ready. PLAY SET starts the unified Loop Core.':'Ready. Tap PLAY SET or a layer and perform.');
   },350);
 }
-window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,stop:stopClear,scene:queueScene};
+window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,startDjSet,stop:stopClear,scene:queueScene};
 })();
