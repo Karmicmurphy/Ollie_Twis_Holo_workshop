@@ -28,7 +28,7 @@ assert "./assets/samples/twis/perc-02.wav" in sound
 assert "INTRO:{active:[1,1,0,0,1,0,0,0]" in simple
 assert "DEEP:{active:[1,1,0,1,1,1,0,0]" in simple
 assert "startProfessionalArc" in simple
-assert "HATS:{deep:[0,0,.18,0" in simple
+assert "HATS:{deep:[0,0,.34,0" in simple
 assert "FORMANT VOICE" in sound
 assert "performanceRate" in engine
 assert "function proBass" in engine
