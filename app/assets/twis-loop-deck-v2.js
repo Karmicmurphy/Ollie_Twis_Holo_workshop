@@ -227,11 +227,11 @@ function renderLoops(){
         <button data-clearloop="${i}" ${l.buffer||l.undo?'':'disabled'}>CLEAR LOOP</button>
       </div></div>`;
   }).join('');
-  $('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));
-  $('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));
-  $('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));
-  $('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));
-  $('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));
+  document.querySelectorAll('[data-rec]').forEach(b=>b.onclick=()=>toggleRecord(+b.dataset.rec));
+  document.querySelectorAll('[data-lplay]').forEach(b=>b.onclick=()=>toggleLoop(+b.dataset.lplay));
+  document.querySelectorAll('[data-clearloop]').forEach(b=>b.onclick=()=>clearLoop(+b.dataset.clearloop));
+  document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoLoop(+b.dataset.undo));
+  document.querySelectorAll('[data-bars]').forEach(b=>b.onclick=()=>cycleBars(+b.dataset.bars));
 }
 function renderPads(){const el=$('#ldPads');if(!el)return;el.innerHTML=state.padNames.map((n,i)=>`<button class="ld-pad ${state.padBuffers[i]?'loaded':''}" data-pad="${i}"><b>${i+1}</b><small>${state.padMeta[i]?.label||n}</small></button>`).join('');$$('.ld-pad').forEach(b=>{b.onpointerdown=e=>{unlock();triggerPad(+b.dataset.pad,clamp(e.pressure||.82,.2,1));};b.oncontextmenu=e=>e.preventDefault();});}
 function cycleStep(p,s){const levels=[0,.5,.75,1],cur=state.pattern[p][s],idx=levels.findIndex(x=>x===cur);state.pattern[p][s]=levels[(idx+1)%levels.length];renderSeq();saveMeta();}
