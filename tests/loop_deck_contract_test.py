@@ -10,6 +10,7 @@ APP = ROOT / "app"
 def test_loop_deck_entry_wires_v2_modules():
     html = (APP / "loop-deck.html").read_text(encoding="utf-8")
     assert "assets/twis-loop-core.js" in html
+    assert "assets/twis-sampled-role-engine.js" in html
     assert "assets/twis-loop-deck-v2.js" in html
     assert "assets/twis-loop-deck-modules.js" in html
     assert "TWIS_LOOP_MODULES" in html
@@ -64,6 +65,7 @@ def test_loop_deck_service_workers_share_cache_contract():
         "./loop-deck.html",
         "./loop-deck.webmanifest",
         "./assets/twis-loop-core.js",
+        "./assets/twis-sampled-role-engine.js",
         "./assets/twis-loop-deck-v2.js",
         "./assets/twis-loop-deck-modules.js",
         "./assets/twis-simple-perform.js",
@@ -81,6 +83,7 @@ def test_loop_deck_javascript_parses_when_node_is_available():
         return
     for rel in (
         "app/assets/twis-loop-core.js",
+        "app/assets/twis-sampled-role-engine.js",
         "app/assets/twis-loop-deck-v2.js",
         "app/assets/twis-loop-deck-modules.js",
         "app/assets/twis-loop-calibration.js",
@@ -96,14 +99,16 @@ def test_simple_perform_contract_present():
     simple = (APP / "assets" / "twis-simple-perform.js").read_text(encoding="utf-8")
     sound = (APP / "assets" / "twis-loop-sound-rack.js").read_text(encoding="utf-8")
     forge = (APP / "assets" / "twis-loop-forge.js").read_text(encoding="utf-8")
-    for label in ("KICK", "BASS", "HATS", "PERC", "PAD", "MELODY", "FX", "VOCAL"):
+    for label in ("KICK", "BASS", "HATS", "CLAP", "PAD", "MELODY", "FX", "VOCAL"):
         assert label in simple
     assert "DEEP MELODIC HOUSE" in simple
-    assert "PLAY SET" in simple
+    assert "▶ PLAY" in simple
     assert "performanceScenes" in simple
     assert "queueBarAction" in simple
     assert "GHOST — CATCH THAT" in simple
-    assert "FUCK IT" in simple
+    assert "FUCK IT" not in simple
+    assert "DJ AUTO SET" not in simple
+    assert "startProfessionalArc" not in simple
     assert "SAVE / LOAD" in simple
     assert "navigator.storage?.getDirectory" in simple
     assert "loadPresetToPad" in sound and "loadFileToPad" in sound
