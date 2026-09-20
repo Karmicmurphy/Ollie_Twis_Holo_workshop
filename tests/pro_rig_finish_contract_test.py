@@ -19,7 +19,7 @@ assert "function stopAll(){stop();}" in engine
 assert "outputGate" in engine and "outputGate.gain.setTargetAtTime(0" in engine
 assert "document.querySelectorAll(\'.ld-step.now\').forEach" in engine
 assert "stopCount++;$(\'.ld-step.now\').forEach" not in engine
-assert "PLAY SET" in simple and "STOP / CLEAR" in simple
+assert "PLAY SET" in simple and "CLEAR EVERYTHING" in simple
 assert "loadPerformancePack" in simple
 assert "PERFORMANCE_ASSETS" in sound
 assert "./assets/samples/twis/909-kick.wav" in sound
