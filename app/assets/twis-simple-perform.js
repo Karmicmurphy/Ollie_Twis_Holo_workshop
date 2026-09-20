@@ -123,18 +123,25 @@ async function startDjSet(){
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP';
   status('DJ SET running · staged arrangement is ON because you explicitly started it.');
 }
-async function stopClear(){
+function stopTransport(){
+  autoMixToken++;djAuto=false;
+  window.TWIS_LOOP_DECK?.commands?.stop?.();
+  const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY';
+  status('STOPPED. Current loops/layers stay in this session until you clear them.');
+}
+async function clearEverything(){
   autoMixToken++;djAuto=false;
   active.fill(false);applyAll();
   await window.TWIS_LOOP_DECK?.commands?.clearSession?.({purgeLegacy:true});
-  const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY SET';
+  const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY';
   echoOn=false;washOn=false;buildBarsLeft=0;
   window.TWIS_LOOP_DECK?.commands?.setEcho?.(false);
   window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
   q('#simpleEcho')?.classList.remove('active');q('#simpleWash')?.classList.remove('active');q('#simpleBuild')?.classList.remove('active');
-  packPrimed=false;status('CLEARED. Nothing recorded, imported, custom, or saved will come back on PLAY.');
+  packPrimed=false;
+  status('CLEAR EVERYTHING complete. Loops, imports, custom sounds, patterns, and saved sessions are gone.');
 }
-function togglePlaySet(){const s=state();if(s?.playing)stopClear();else playSet();}
+function togglePlaySet(){const s=state();if(s?.playing)stopTransport();else playSet();}
 function buildStep(){
   if(buildBarsLeft<=0)return;
   const progress=(5-buildBarsLeft)/4;
@@ -213,7 +220,7 @@ function build(){
   const sceneHtml=Object.keys(performanceScenes).map(n=>'<button data-performance-scene="'+n+'">'+n+'</button>').join('');
   page.innerHTML='<div class="simple-shell">'+
     '<div class="simple-head"><div><div class="simple-brand">TWIS LOOP DECK</div><div class="simple-title">'+(proMode?'PRO RIG':'PERFORM')+'</div><div class="simple-packline">ONE ENGINE · ONE CLOCK · ONE MUSICAL JOB PER CONTROL</div><div class="simple-modebadge">'+(proMode?'AMPHITHEATER PERFORMANCE SURFACE':'PHONE-FIRST LOOP WORKSTATION')+'</div></div><button class="simple-advanced" id="simpleAdvanced">ADVANCED</button></div>'+
-    '<button class="simple-playset" id="simplePlaySet">▶ PLAY / STOP</button><button class="simple-playset" id="simpleDjSet">DJ AUTO SET</button>'+
+    '<button class="simple-playset" id="simplePlaySet">▶ PLAY</button><button class="simple-playset" id="simpleDjSet">DJ AUTO SET</button>'+
     '<div class="simple-scenes">'+sceneHtml+'</div>'+
     '<div class="simple-grid">'+roles.map((r,i)=>'<button class="simple-role" data-role="'+i+'">'+r+'</button>').join('')+'</div>'+
     '<div class="simple-info"><div><b id="simpleBpm">124 BPM</b>TEMPO</div><div><b id="simpleKey">D MIN</b>KEY</div><div><b>1 BAR</b>MASTER QUANTIZATION</div></div>'+
@@ -231,7 +238,7 @@ function build(){
   qa('[data-performance-scene]').forEach(b=>b.onclick=()=>queueScene(b.dataset.performanceScene));
   q('#simpleAdvanced').onclick=advanced;q('#simplePlaySet').onclick=togglePlaySet;q('#simpleDjSet').onclick=startDjSet;
   q('#simpleBuild').onclick=buildSet;q('#simpleDrop').onclick=dropSet;q('#simpleEcho').onclick=toggleEcho;q('#simpleWash').onclick=toggleWash;q('#simpleVocalHit').onclick=vocalHit;
-  q('#simpleGhost').onclick=catchGhost;q('#simpleFuck').onclick=fuckIt;q('#simpleUndo').onclick=undo;q('#simpleStop').onclick=stopClear;
+  q('#simpleGhost').onclick=catchGhost;q('#simpleFuck').onclick=fuckIt;q('#simpleUndo').onclick=undo;q('#simpleStop').onclick=clearEverything;
   q('#simplePack').onchange=e=>loadPack(e.target.value);q('#simpleEnergy').oninput=e=>setEnergy(e.target.value);
   q('#simpleSound').onclick=()=>openDrawer('sound');q('#simpleSaveLoad').onclick=()=>openDrawer('sessions');q('#simpleDrawerClose').onclick=closeDrawer;q('#simpleSaveSession').onclick=saveSession;
   q('#simpleSoundFile').onchange=e=>{const i=Number(q('#simpleSoundRole').value);customSound(i,e.target.files?.[0]);e.target.value='';};
@@ -246,5 +253,5 @@ async function install(){
     status(proMode?'Ready. PLAY SET starts the unified Loop Core.':'Ready. Tap PLAY SET or a layer and perform.');
   },350);
 }
-window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,startDjSet,stop:stopClear,scene:queueScene};
+window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,startDjSet,stop:stopTransport,clearEverything,scene:queueScene};
 })();
