@@ -130,7 +130,7 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
 
   h=await health(page);
   if(h.startCount!==7||h.stopCount!==7)throw new Error(label+': duplicate start/stop accounting '+JSON.stringify(h));
-  const cleared=await page.evaluate(()=>({
+  const cleared=await page.evaluate(async()=>({
     loopBuffers:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.buffer).length,
     importLoaded:!!window.TWIS_LOOP_DECK.state.importBuffer,
     patternHits:window.TWIS_LOOP_DECK.state.pattern.flat().filter(Boolean).length,
