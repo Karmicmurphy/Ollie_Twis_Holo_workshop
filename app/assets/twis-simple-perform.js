@@ -3,8 +3,8 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let installed=false, active=Array(8).fill(false), energy=.52, packName='DEEP MELODIC HOUSE', lastGhostLoop=-1;
 const proMode=new URLSearchParams(location.search).get('mode')==='pro';
-let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0,djAuto=false;
-const roles=['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL'];
+let currentScene='INTRO',echoOn=false,washOn=false,buildBarsLeft=0,packPrimed=false,autoMixToken=0;
+const roles=['KICK','BASS','HATS','CLAP','PAD','MELODY','FX','VOCAL'];
 const packs={
  'DEEP MELODIC HOUSE':{bpm:124,key:'D MIN',presets:[0,8,5,7,13,15,22,24]},
  'NIGHT DRIVE':{bpm:118,key:'D MIN',presets:[1,8,5,6,13,14,22,24]},
@@ -24,7 +24,7 @@ const patterns={
  KICK:{deep:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],mid:[1,0,0,0,1,0,0,0,1,0,0,.28,1,0,0,0],drive:[1,0,.18,0,1,0,0,.22,1,0,.18,0,1,0,.32,0]},
  BASS:{deep:[.9,0,0,.42,0,0,.62,0,.78,0,0,0,0,.55,0,0],mid:[1,0,.32,.5,0,0,.72,0,.84,0,.4,0,0,.62,0,.3],drive:[1,.25,.45,.62,0,.38,.78,0,.92,.35,.55,0,.3,.72,0,.48]},
  HATS:{deep:[0,0,.34,0,0,0,.42,0,0,0,.34,0,0,0,.48,0],mid:[0,.18,.48,0,0,.22,.58,0,0,.18,.5,0,0,.24,.66,.12],drive:[.12,.28,.6,.18,.12,.3,.7,.18,.12,.28,.62,.18,.14,.34,.78,.2]},
- PERC:{deep:[0,0,0,0,.48,0,0,0,0,0,0,0,.52,0,0,0],mid:[0,0,.16,0,.62,0,0,.18,0,0,.18,0,.66,0,0,.2],drive:[0,.16,.24,0,.72,0,.18,.24,0,.18,.28,0,.76,0,.2,.28]},
+ CLAP:{deep:[0,0,0,0,.48,0,0,0,0,0,0,0,.52,0,0,0],mid:[0,0,.16,0,.62,0,0,.18,0,0,.18,0,.66,0,0,.2],drive:[0,.16,.24,0,.72,0,.18,.24,0,.18,.28,0,.76,0,.2,.28]},
  PAD:{deep:[.72,0,0,0,0,0,0,0,.66,0,0,0,0,0,0,0],mid:[.78,0,0,0,0,0,0,0,.72,0,0,0,0,0,0,0],drive:[.82,0,0,0,0,0,0,0,.78,0,0,0,0,0,0,0]},
  MELODY:{deep:[0,0,0,0,0,0,.28,0,0,0,0,0,0,0,.22,0],mid:[0,0,.3,0,0,0,.5,0,0,0,0,.28,0,0,.46,0],drive:[0,.22,.42,0,0,.28,.62,0,0,.26,.48,0,0,.3,.68,0]},
  FX:{deep:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,.24],mid:[0,0,0,0,0,0,0,.2,0,0,0,0,0,0,0,.4],drive:[0,0,0,.18,0,0,0,.34,0,0,0,.22,0,0,0,.58]},
@@ -39,21 +39,43 @@ function rolePattern(i){return patterns[roles[i]][variant()]}
 function applyRole(i){const s=state();if(!s)return;const row=s.pattern[i];if(!row)return;row.fill(0);if(active[i])rolePattern(i).forEach((v,k)=>row[k]=v);}
 function applyAll(){for(let i=0;i<8;i++)applyRole(i);syncAdvancedSeq();paintPads();}
 function syncAdvancedSeq(){const s=state();if(!s)return;qa('.ld-step').forEach(b=>{const p=+b.dataset.row,k=+b.dataset.step,v=s.pattern[p]?.[k]||0,r=s.ratchets[p]?.[k]||1;b.classList.toggle('on',!!v);b.style.opacity=v?String(.35+.65*v):'1';b.textContent=r>1?String(r):'';});}
-function toggleRole(i){if(!ensureTransport())return;active[i]=!active[i];applyRole(i);syncAdvancedSeq();paintPads();status(roles[i]+(active[i]?' ON · locked to the groove.':' OFF · drops cleanly on the running pattern.'));saveAuto();}
+async function prepareRole(role){
+  const tonal=['BASS','PAD','MELODY'];
+  if(!tonal.includes(role))return true;
+  const engine=window.TWIS_SAMPLED_ROLE_ENGINE;
+  if(!engine)return false;
+  if(engine.isReady?.(role))return true;
+  try{await engine.prepareRole(role);return true;}
+  catch{return false;}
+}
+async function toggleRole(i){
+  const role=roles[i];
+  if(!packPrimed){await loadPack(packName,true);packPrimed=true;}
+  if(!active[i]){
+    const ready=await prepareRole(role);
+    if(['BASS','PAD','MELODY'].includes(role)&&!ready){
+      status(role+' could not load. Nothing fake was substituted.');
+      return;
+    }
+  }
+  if(!ensureTransport())return;
+  active[i]=!active[i];applyRole(i);syncAdvancedSeq();paintPads();
+  status(role+(active[i]?' ON · explicit layer added.':' OFF · layer removed.'));
+  saveAuto();
+}
 function paintPads(){qa('.simple-role').forEach((b,i)=>b.classList.toggle('active',!!active[i]));}
 function paintStatus(){const s=state(),pack=packs[packName];const bpm=q('#simpleBpm'),key=q('#simpleKey');if(bpm)bpm.textContent=Math.round(s?.bpm||pack.bpm)+' BPM';if(key)key.textContent=pack.key;}
 async function loadPack(name,keepActive=false){
   const api=window.TWIS_LOOP_SOUND_RACK,def=packs[name];
   if(!api||!def)return status('Sound engine is still waking up. Try PACK again in a second.');
   packName=name;setBpm(def.bpm);
-  for(let i=0;i<8;i++){api.loadPresetToPad?.(i,def.presets[i]);await new Promise(r=>setTimeout(r,4));}
   if(!keepActive)active.fill(false);
   applyAll();
   const sel=q('#simplePack');if(sel)sel.value=name;paintStatus();
-  status(name+' local role engine loaded · sampled drums/voice loading in background.');
+  status(name+' · loading the studio drum kit.');
   const sampleResult=await api.loadPerformancePack?.().catch(()=>null);
-  if(sampleResult?.loaded)status(name+' · real drum samples + live bass/pad/lead engine ready.');
-  else status(name+' · local hybrid engine active.');
+  if(sampleResult?.loaded)status(name+' ready · PLAY is silent until you add a layer.');
+  else status(name+' partial · missing drum sample(s). PLAY still stays silent.');
   saveAuto();
   return sampleResult;
 }
@@ -67,47 +89,18 @@ function applySceneNow(name){
   const er=q('#simpleEnergy');if(er)er.value=String(energy);
   setEnergy(energy);applyAll();paintPads();paintScene();saveAuto();
 }
-function queueScene(name){
+async function queueScene(name){
+  const def=performanceScenes[name];if(!def)return;
+  if(!packPrimed){await loadPack(packName,true);packPrimed=true;}
+  const needed=roles.filter((role,i)=>def.active[i]&&['BASS','PAD','MELODY'].includes(role));
+  for(const role of needed){
+    const ready=await prepareRole(role);
+    if(!ready)return status(name+' not started · '+role+' failed to load.');
+  }
   if(!ensureTransport())return;
-  const api=window.TWIS_LOOP_DECK?.commands;
-  if(!api)return;
+  const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
   status(name+' queued for the next bar.');
-  api.queueBarAction(()=>{applySceneNow(name);status(name+' LIVE · one Loop Core, one transport.');});
-}
-function scheduleBars(count,fn,token){
-  const api=window.TWIS_LOOP_DECK?.commands;
-  let left=count;
-  const step=()=>{
-    if(token!==autoMixToken)return;
-    left--;
-    if(left<=0){fn();return;}
-    api?.queueBarAction?.(step);
-  };
-  api?.queueBarAction?.(step);
-}
-function startProfessionalArc(){
-  const token=++autoMixToken;
-  applySceneNow('INTRO');
-  scheduleBars(2,()=>{
-    applySceneNow('DEEP');
-    scheduleBars(4,()=>{
-      applySceneNow('LIFT');
-      scheduleBars(4,()=>{
-        applySceneNow('BREAK');
-        window.TWIS_LOOP_DECK?.commands?.setWash?.(true);
-        scheduleBars(3,()=>{
-          window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
-          buildBarsLeft=3;
-          buildStep();
-          scheduleBars(3,()=>{
-            applySceneNow('PEAK');
-            window.TWIS_LOOP_DECK?.commands?.triggerPad?.(6,.82,window.TWIS_LOOP_DECK.commands.nextGrid('bar'));
-            status('PEAK · full groove, no click-track layer.');
-          },token);
-        },token);
-      },token);
-    },token);
-  },token);
+  api.queueBarAction(()=>{applySceneNow(name);status(name+' LIVE · only this scene was explicitly requested.');});
 }
 async function playSet(){
   const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
@@ -116,21 +109,14 @@ async function playSet(){
   const b=q('#simplePlaySet');if(b)b.textContent='■ STOP';
   status(active.some(Boolean)?'PLAYING only the layers you turned on.':'TRANSPORT RUNNING · no layer or old loop was auto-started.');
 }
-async function startDjSet(){
-  const api=window.TWIS_LOOP_DECK?.commands;if(!api)return;
-  if(!packPrimed){await loadPack(packName,false);packPrimed=true;}
-  await api.play?.();djAuto=true;startProfessionalArc();
-  const b=q('#simplePlaySet');if(b)b.textContent='■ STOP';
-  status('DJ SET running · staged arrangement is ON because you explicitly started it.');
-}
 function stopTransport(){
-  autoMixToken++;djAuto=false;
+  autoMixToken++;
   window.TWIS_LOOP_DECK?.commands?.stop?.();
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY';
   status('STOPPED. Current loops/layers stay in this session until you clear them.');
 }
 async function clearEverything(){
-  autoMixToken++;djAuto=false;
+  autoMixToken++;
   active.fill(false);applyAll();
   await window.TWIS_LOOP_DECK?.commands?.clearSession?.({purgeLegacy:true});
   const b=q('#simplePlaySet');if(b)b.textContent='▶ PLAY';
@@ -220,12 +206,12 @@ function build(){
   const sceneHtml=Object.keys(performanceScenes).map(n=>'<button data-performance-scene="'+n+'">'+n+'</button>').join('');
   page.innerHTML='<div class="simple-shell">'+
     '<div class="simple-head"><div><div class="simple-brand">TWIS LOOP DECK</div><div class="simple-title">'+(proMode?'PRO RIG':'PERFORM')+'</div><div class="simple-packline">ONE ENGINE · ONE CLOCK · ONE MUSICAL JOB PER CONTROL</div><div class="simple-modebadge">'+(proMode?'AMPHITHEATER PERFORMANCE SURFACE':'PHONE-FIRST LOOP WORKSTATION')+'</div></div><button class="simple-advanced" id="simpleAdvanced">ADVANCED</button></div>'+
-    '<button class="simple-playset" id="simplePlaySet">▶ PLAY</button><button class="simple-playset" id="simpleDjSet">DJ AUTO SET</button>'+
+    '<button class="simple-playset" id="simplePlaySet">▶ PLAY</button>'+
     '<div class="simple-scenes">'+sceneHtml+'</div>'+
     '<div class="simple-grid">'+roles.map((r,i)=>'<button class="simple-role" data-role="'+i+'">'+r+'</button>').join('')+'</div>'+
     '<div class="simple-info"><div><b id="simpleBpm">124 BPM</b>TEMPO</div><div><b id="simpleKey">D MIN</b>KEY</div><div><b>1 BAR</b>MASTER QUANTIZATION</div></div>'+
-    '<div class="simple-livefx"><button id="simpleBuild">BUILD 4</button><button id="simpleDrop">DROP</button><button id="simpleEcho">ECHO</button><button id="simpleWash">WASH</button><button id="simpleVocalHit">VOCAL HIT</button></div>'+
-    '<div class="simple-actions"><button class="simple-ghost" id="simpleGhost">👻 GHOST — CATCH THAT</button><div class="simple-row"><button class="simple-fuck" id="simpleFuck">FUCK IT</button><button class="simple-stop" id="simpleStop">CLEAR EVERYTHING</button></div><button class="simple-undo" id="simpleUndo">UNDO THAT SHIT</button></div>'+
+    '<div class="simple-livefx"><button id="simpleBuild">BUILD 4</button><button id="simpleDrop">DROP</button><button id="simpleEcho">ECHO</button><button id="simpleWash">WASH</button></div>'+
+    '<div class="simple-actions"><button class="simple-ghost" id="simpleGhost">👻 GHOST — CATCH THAT</button><button class="simple-stop" id="simpleStop">CLEAR EVERYTHING</button></div>'+
     '<div class="simple-bottom"><div class="simple-packrow"><select id="simplePack">'+Object.keys(packs).map(n=>'<option>'+n+'</option>').join('')+'</select><button id="simpleSound">+ MY SOUND</button><button id="simpleSaveLoad">SAVE / LOAD</button></div><div class="simple-energy"><span>DEEP</span><input id="simpleEnergy" type="range" min="0" max="1" step=".01" value=".52"><span>DRIVE · <b id="simpleEnergyV">52%</b></span></div></div>'+
     '<div id="simpleStatus" class="simple-status">Loading local performance engine…</div></div>';
   const oldStatus=body.querySelector('#ldStatus');body.insertBefore(page,oldStatus||null);
@@ -236,9 +222,9 @@ function build(){
 
   tab.onclick=easy;qa('[data-role]').forEach(b=>b.onclick=()=>toggleRole(+b.dataset.role));
   qa('[data-performance-scene]').forEach(b=>b.onclick=()=>queueScene(b.dataset.performanceScene));
-  q('#simpleAdvanced').onclick=advanced;q('#simplePlaySet').onclick=togglePlaySet;q('#simpleDjSet').onclick=startDjSet;
-  q('#simpleBuild').onclick=buildSet;q('#simpleDrop').onclick=dropSet;q('#simpleEcho').onclick=toggleEcho;q('#simpleWash').onclick=toggleWash;q('#simpleVocalHit').onclick=vocalHit;
-  q('#simpleGhost').onclick=catchGhost;q('#simpleFuck').onclick=fuckIt;q('#simpleUndo').onclick=undo;q('#simpleStop').onclick=clearEverything;
+  q('#simpleAdvanced').onclick=advanced;q('#simplePlaySet').onclick=togglePlaySet;
+  q('#simpleBuild').onclick=buildSet;q('#simpleDrop').onclick=dropSet;q('#simpleEcho').onclick=toggleEcho;q('#simpleWash').onclick=toggleWash;
+  q('#simpleGhost').onclick=catchGhost;q('#simpleStop').onclick=clearEverything;
   q('#simplePack').onchange=e=>loadPack(e.target.value);q('#simpleEnergy').oninput=e=>setEnergy(e.target.value);
   q('#simpleSound').onclick=()=>openDrawer('sound');q('#simpleSaveLoad').onclick=()=>openDrawer('sessions');q('#simpleDrawerClose').onclick=closeDrawer;q('#simpleSaveSession').onclick=saveSession;
   q('#simpleSoundFile').onchange=e=>{const i=Number(q('#simpleSoundRole').value);customSound(i,e.target.files?.[0]);e.target.value='';};
@@ -250,8 +236,8 @@ async function install(){
   installed=true;easy();
   setTimeout(async()=>{
     restoreAuto();paintStatus();paintScene();
-    status(proMode?'Ready. PLAY SET starts the unified Loop Core.':'Ready. Tap PLAY SET or a layer and perform.');
+    status('Ready. PLAY starts silent. Add only the layer you want.');
   },350);
 }
-window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,startDjSet,stop:stopTransport,clearEverything,scene:queueScene};
+window.TWIS_SIMPLE_PERFORM={install,easy,advanced,loadPack,saveSession,playSet,stop:stopTransport,clearEverything,scene:queueScene};
 })();
