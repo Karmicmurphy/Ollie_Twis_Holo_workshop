@@ -26,6 +26,7 @@ jobs:
         run: |
           node --check app/assets/app.js
           node --check app/assets/twis-loop-core.js
+          node --check app/assets/twis-sampled-role-engine.js
           node --check app/assets/twis-loop-deck-v2.js
           node --check app/assets/twis-simple-perform.js
           node --check cloudflare/worker/src/index.js
