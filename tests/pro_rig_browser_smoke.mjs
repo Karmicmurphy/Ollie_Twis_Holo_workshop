@@ -46,6 +46,9 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
 
   await page.click('#simplePlaySet');
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===true,null,{timeout:7000});
+  const freshPlay=await page.evaluate(()=>({active:[...document.querySelectorAll('.simple-role')].filter(x=>x.classList.contains('active')).length,loops:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.playing).length}));
+  if(freshPlay.active||freshPlay.loops)throw new Error(label+': PLAY auto-started remembered layers/loops '+JSON.stringify(freshPlay));
+  await page.click('#simpleDjSet');
   const startupNow=await page.evaluate(()=>({intro:document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),hats:document.querySelectorAll('.simple-role')[2]?.classList.contains('active'),perc:document.querySelectorAll('.simple-role')[3]?.classList.contains('active')}));
   if(!startupNow.intro||startupNow.hats||startupNow.perc)throw new Error(label+': PLAY still starts like a click track '+JSON.stringify(startupNow));
   await page.evaluate(()=>window.TWIS_LOOP_DECK.commands.setBpm(240));
@@ -163,6 +166,11 @@ async function runAdvancedPath(){
   if(loops!==8)throw new Error('advanced: expected 8 loop tracks, got '+loops);
   if(await page.locator('[data-rec]').count()!==8)throw new Error('advanced: recording controls missing');
   if(await page.locator('#ldFile').count()!==1)throw new Error('advanced: import control missing');
+  const micText=await page.locator('#ldMicEnable').innerText();
+  if(!/MIC OFF/.test(micText))throw new Error('advanced: mic control is not an explicit off/on toggle: '+micText);
+  const loopTexts=await page.locator('.ld-loop').allInnerTexts();
+  if(!loopTexts.every(x=>/LOOP \d+ · (EMPTY|READY|PLAYING|RECORDING|ARMED)/.test(x)))throw new Error('advanced: loop state labels are unclear '+JSON.stringify(loopTexts));
+
   if(errors.length)throw new Error('advanced browser errors '+errors.join(' | '));
   await browser.close();
   return {loops};
