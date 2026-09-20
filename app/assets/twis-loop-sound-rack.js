@@ -52,7 +52,7 @@ const PERFORMANCE_ROLE_META=[
  {role:'KICK',rootMidi:36,gain:1},
  {role:'BASS',rootMidi:38,gain:.86},
  {role:'HATS',rootMidi:60,gain:.58},
- {role:'PERC',rootMidi:60,gain:.62},
+ {role:'CLAP',rootMidi:60,gain:.68},
  {role:'PAD',rootMidi:50,gain:.62},
  {role:'MELODY',rootMidi:62,gain:.58},
  {role:'FX',rootMidi:60,gain:.48},
@@ -61,8 +61,8 @@ const PERFORMANCE_ROLE_META=[
 const PERFORMANCE_ASSETS={
   // Salvaged from permissive/CC0 donor libraries; see docs/TWIS_SONIC_SALVAGE_2026-09-19.md.
   0:'./assets/samples/twis/909-kick.wav',
-  2:'./assets/samples/twis/hat-closed-03.wav',
-  3:'./assets/samples/twis/perc-02.wav',
+  2:'./assets/samples/twis/808-hat-closed.m4a',
+  3:'./assets/samples/twis/808-clap.m4a',
   6:'./assets/samples/twis/crash-01.wav'
 };
 async function fetchDecode(url){
@@ -88,7 +88,7 @@ async function loadPerformancePack(){
   const results=await Promise.all(jobs);
   const loaded=results.filter(Boolean).length;
   s.sonicPackState=loaded===results.length?'SAMPLED':'HYBRID';
-  status(loaded>=4?'Performance pack online · sampled kick/hats/perc/FX/voice + tonal engine.':'Performance pack running hybrid fallback · tonal engine remains active.');
+  status(loaded>=4?'Studio drum kit online · sampled kick/hat/clap/FX.':'Studio drum kit partial · missing sample(s), no fake tonal fallback.');
   paintPads();
   return {loaded,failed:results.length-loaded,state:s.sonicPackState};
 }
