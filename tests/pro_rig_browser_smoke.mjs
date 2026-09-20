@@ -48,13 +48,16 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===true,null,{timeout:7000});
   const freshPlay=await page.evaluate(()=>({active:[...document.querySelectorAll('.simple-role')].filter(x=>x.classList.contains('active')).length,loops:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.playing).length}));
   if(freshPlay.active||freshPlay.loops)throw new Error(label+': PLAY auto-started remembered layers/loops '+JSON.stringify(freshPlay));
+  const silentPeak=await samplePeak(page,6,60);
+  if(silentPeak>0.01)throw new Error(label+': neutral PLAY was not silent '+silentPeak);
   await page.click('#simpleDjSet');
-  const startupNow=await page.evaluate(()=>({intro:document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),hats:document.querySelectorAll('.simple-role')[2]?.classList.contains('active'),perc:document.querySelectorAll('.simple-role')[3]?.classList.contains('active')}));
-  if(!startupNow.intro||startupNow.hats||startupNow.perc)throw new Error(label+': PLAY still starts like a click track '+JSON.stringify(startupNow));
-  await page.evaluate(()=>window.TWIS_LOOP_DECK.commands.setBpm(240));
-  const p=await samplePeak(page,18,90);
-  if(p<0.00002)throw new Error(label+': PLAY produced no measurable audio');
   await page.waitForFunction(()=>['SAMPLED','HYBRID'].includes(window.TWIS_LOOP_DECK.health().sonicPackState),null,{timeout:12000});
+  await page.waitForFunction(()=>document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),null,{timeout:7000});
+  const startupNow=await page.evaluate(()=>({intro:document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),hats:document.querySelectorAll('.simple-role')[2]?.classList.contains('active'),perc:document.querySelectorAll('.simple-role')[3]?.classList.contains('active')}));
+  if(!startupNow.intro||startupNow.hats||startupNow.perc)throw new Error(label+': DJ SET starts like a click track '+JSON.stringify(startupNow));
+  await page.evaluate(()=>window.TWIS_LOOP_DECK.commands.setBpm(240));
+  const p=await samplePeak(page,24,100);
+  if(p<0.00002)throw new Error(label+': DJ SET produced no measurable audio');
   const sonic=await page.evaluate(()=>{
     const s=window.TWIS_LOOP_DECK.state,h=window.TWIS_LOOP_DECK.health();
     const rms=buf=>{if(!buf)return 0;const x=buf.getChannelData(0);let sum=0;for(let i=0;i<x.length;i+=8)sum+=x[i]*x[i];return Math.sqrt(sum/Math.ceil(x.length/8));};
