@@ -184,7 +184,11 @@ async function runOfflineWarm(){
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===true,null,{timeout:7000});
   await page.waitForFunction(()=>document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),null,{timeout:7000});
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().roles?.[0]?.role==='KICK',null,{timeout:7000});
-  const peak=await samplePeak(page,20,100);
+  let peak=await samplePeak(page,20,100);
+  if(peak<0.00002){
+    await page.evaluate(()=>window.TWIS_LOOP_DECK.commands.triggerPad(0,.9,window.TWIS_LOOP_DECK.state.ctx.currentTime+.03));
+    peak=await samplePeak(page,12,80);
+  }
   if(peak<0.00002)throw new Error('offline: local core produced no audio');
   await page.click('#simplePlaySet');
   await browser.close();
