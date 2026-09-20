@@ -108,6 +108,20 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
     console.log(label+' long-run '+JSON.stringify({ticks:h2.tickCount-t0,memGrowth:mem0&&mem1?mem1-mem0:null}));
   }
 
+  await page.evaluate(async()=>{
+    const s=window.TWIS_LOOP_DECK.state;
+    if(s.padBuffers[0])s.loops[0].buffer=s.padBuffers[0];
+    localStorage.twisSimpleAuto=JSON.stringify({active:[true,true,true,true,true,true,true,true]});
+    if(navigator.storage?.getDirectory){
+      let d=await navigator.storage.getDirectory();
+      d=await d.getDirectoryHandle('twis-loop-deck',{create:true});
+      d=await d.getDirectoryHandle('loops',{create:true});
+      const h=await d.getFileHandle('0.wav',{create:true});
+      const w=await h.createWritable();
+      await w.write(new Uint8Array([82,73,70,70,0,0,0,0,87,65,86,69]));
+      await w.close();
+    }
+  });
   await page.click('#simplePlaySet');
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===false,null,{timeout:3000});
   await sleep(900);
@@ -120,9 +134,10 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
     loopBuffers:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.buffer).length,
     importLoaded:!!window.TWIS_LOOP_DECK.state.importBuffer,
     patternHits:window.TWIS_LOOP_DECK.state.pattern.flat().filter(Boolean).length,
-    autoSaved:!!localStorage.twisSimpleAuto
+    autoSaved:!!localStorage.twisSimpleAuto,
+    legacyLoopFile:await (async()=>{try{let d=await navigator.storage.getDirectory();d=await d.getDirectoryHandle('twis-loop-deck');d=await d.getDirectoryHandle('loops');await d.getFileHandle('0.wav');return true;}catch{return false;}})()
   }));
-  if(cleared.loopBuffers||cleared.importLoaded||cleared.patternHits||cleared.autoSaved)throw new Error(label+': STOP/CLEAR left session data behind '+JSON.stringify(cleared));
+  if(cleared.loopBuffers||cleared.importLoaded||cleared.patternHits||cleared.autoSaved||cleared.legacyLoopFile)throw new Error(label+': STOP/CLEAR left session data behind '+JSON.stringify(cleared));
 
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForSelector('#simplePlaySet',{timeout:12000});
@@ -167,7 +182,9 @@ async function runOfflineWarm(){
   await page.waitForSelector('#simplePlaySet',{timeout:8000});
   await page.click('#simplePlaySet');
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().playing===true,null,{timeout:7000});
-  const peak=await samplePeak(page,12,80);
+  await page.waitForFunction(()=>document.querySelector('[data-performance-scene="INTRO"]')?.classList.contains('active'),null,{timeout:7000});
+  await page.waitForFunction(()=>window.TWIS_LOOP_DECK.health().roles?.[0]?.role==='KICK',null,{timeout:7000});
+  const peak=await samplePeak(page,20,100);
   if(peak<0.00002)throw new Error('offline: local core produced no audio');
   await page.click('#simplePlaySet');
   await browser.close();
