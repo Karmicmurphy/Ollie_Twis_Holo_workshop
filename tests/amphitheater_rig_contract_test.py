@@ -10,5 +10,6 @@ for stem in ['KICK','BASS','HATS','PERC','PAD','MELODY','FX','VOCAL']:
     assert stem in simple
 assert "queueBarAction" in simple
 assert "startProfessionalArc" in simple
-assert "kick + bass + pad first" in simple
+assert "TRANSPORT RUNNING" in simple
+assert "DJ SET running" in simple
 print('Unified amphitheater surface contract PASS')
