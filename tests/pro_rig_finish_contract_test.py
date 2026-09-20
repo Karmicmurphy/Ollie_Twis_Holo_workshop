@@ -18,7 +18,7 @@ assert "new core.TransportClock" in engine
 assert "new core.LoopStateMachine" in engine
 assert "TWIS_SAMPLED_ROLE_ENGINE" in engine
 assert "function stopAll(){stop();}" in engine
-assert "outputGate" in engine and "outputGate.gain.setTargetAtTime(0" in engine
+assert "outputGate" in engine and "outputGate.gain.setValueAtTime(0" in engine
 assert "function proBass" not in engine
 assert "function proPad" not in engine
 assert "function proLead" not in engine
