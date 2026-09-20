@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v19-ephemeral-loops";
+const CACHE_NAME = "twis-holo-workshop-v20-sample-first";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const APP_SHELL = [
   "./assets/app.js",
   "./assets/twis-loop-deck.css",
   "./assets/twis-loop-core.js",
+  "./assets/twis-sampled-role-engine.js",
   "./assets/twis-loop-deck-v2.js",
   "./assets/twis-loop-deck-modules.js",
   "./assets/twis-loop-calibration.js",
@@ -22,6 +23,8 @@ const APP_SHELL = [
   "./assets/twis-loop-performance.js",
   "./assets/twis-simple-perform.js",
   "./assets/samples/twis/909-kick.wav",
+  "./assets/samples/twis/808-hat-closed.m4a",
+  "./assets/samples/twis/808-clap.m4a",
   "./assets/samples/twis/hat-closed-03.wav",
   "./assets/samples/twis/perc-02.wav",
   "./assets/samples/twis/crash-01.wav",
