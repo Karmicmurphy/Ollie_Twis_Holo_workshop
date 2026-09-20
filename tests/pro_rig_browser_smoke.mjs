@@ -116,12 +116,25 @@ async function runUnifiedCase(label,contextOptions,{longRun=false}={}){
 
   h=await health(page);
   if(h.startCount!==7||h.stopCount!==7)throw new Error(label+': duplicate start/stop accounting '+JSON.stringify(h));
+  const cleared=await page.evaluate(()=>({
+    loopBuffers:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.buffer).length,
+    importLoaded:!!window.TWIS_LOOP_DECK.state.importBuffer,
+    patternHits:window.TWIS_LOOP_DECK.state.pattern.flat().filter(Boolean).length,
+    autoSaved:!!localStorage.twisSimpleAuto
+  }));
+  if(cleared.loopBuffers||cleared.importLoaded||cleared.patternHits||cleared.autoSaved)throw new Error(label+': STOP/CLEAR left session data behind '+JSON.stringify(cleared));
 
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForSelector('#simplePlaySet',{timeout:12000});
   await page.waitForFunction(()=>window.TWIS_LOOP_DECK?.health,null,{timeout:12000});
   h=await health(page);
   if(h.playing||h.contextState!=='not-started')throw new Error(label+': reload not clean '+JSON.stringify(h));
+  const afterReload=await page.evaluate(()=>({
+    loops:window.TWIS_LOOP_DECK.state.loops.filter(l=>l.buffer).length,
+    imported:!!window.TWIS_LOOP_DECK.state.importBuffer,
+    hits:window.TWIS_LOOP_DECK.state.pattern.flat().filter(Boolean).length
+  }));
+  if(afterReload.loops||afterReload.imported||afterReload.hits)throw new Error(label+': stale audio/pattern restored after reload '+JSON.stringify(afterReload));
   if(errors.length)throw new Error(label+': browser errors '+errors.join(' | '));
   await browser.close();
   return {label,peak:p,roles,sonic};
