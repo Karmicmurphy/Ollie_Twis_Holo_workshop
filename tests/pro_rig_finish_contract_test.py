@@ -35,6 +35,6 @@ assert "KICK,BASS,HATS,PERC,PAD,MELODY,FX,VOCAL" not in simple  # roles are expl
 assert sw==sw2
 assert '"./assets/twis-loop-core.js"' in sw
 assert '"./assets/twis-pro-rig-v4.js"' not in sw
-assert "twis-holo-workshop-v18-sonic-salvage" in sw
+assert "twis-holo-workshop-v19-ephemeral-loops" in sw
 assert '"./assets/samples/twis/909-kick.wav"' in sw
 print("Unified workstation finish contract PASS")
