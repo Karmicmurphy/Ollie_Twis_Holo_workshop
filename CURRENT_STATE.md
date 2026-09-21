@@ -4,7 +4,7 @@ Updated: 2026-09-18
 
 ## Living Workshop Main Build — Phase 1A candidate
 
-Evidence state: **IMPLEMENTED_UNPROVEN**
+Evidence state: **PROVEN_IN_TEST (GITHUB SNAPSHOT ONLY)**
 
 Active branch: `living-workshop-main-build`
 
@@ -25,9 +25,20 @@ The branch now contains the first bounded Phase 1A implementation for artifact r
 - an injected-failure rollback proof path enabled only under the test environment;
 - a Phase 1A pytest proof covering ten mixed artifacts, FTS, restart recovery, history, capsule revisions, protected source rejection, cross-project ID reuse rejection, stale-writer rejection, SQL tamper rejection, rollback, retirement, and the visible History control.
 
-The current ChatGPT execution environment could not download the branch archive from GitHub, and the GitHub connector exposed no completed workflow/check run for the latest push. Therefore these changes are not yet promoted to PROVEN_IN_TEST. The first unproven gate is **execute repository CI / Phase 1A pytest against this branch and repair any failures**.
+GitHub Actions run `35316390527` completed successfully at branch head `7644271d2c55a94056ecf977ae15acf0c0d7ef2d`.
 
-Do not start Phase 1B or Phase 2 until Phase 1A passes its runtime proof matrix.
+Verified evidence in that run:
+- Python and JavaScript syntax checks passed;
+- Workshop smoke test passed;
+- `python -m pytest -q tests` passed **54 tests**;
+- the pytest set includes `tests/phase1a_revision_test.py`, which exercises the Phase 1A revision matrix through the local HTTP/application path;
+- local companion API e2e passed;
+- Cloudflare Worker contract test passed;
+- static Pages build completed successfully.
+
+Therefore the **GitHub Phase 1A candidate is PROVEN_IN_TEST**. This does not prove that the authoritative local Windows Workshop is synchronized with this branch, and it does not prove a production/cloud deployment.
+
+The next unproven gate is **reconcile the authoritative local Windows Workshop against this GitHub snapshot before treating GitHub as disaster-recovery/current product authority**. Do not silently start later broad phases merely because the GitHub candidate passed CI.
 
 This file describes the **GitHub repository snapshot**. It does not override the local Windows Workshop. Local remains the private authority; GitHub is code backup and deployment source; Cloudflare remains an optional non-authoritative field/public shell.
 
