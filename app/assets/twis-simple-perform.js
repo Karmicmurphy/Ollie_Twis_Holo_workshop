@@ -95,11 +95,11 @@ function startProfessionalArc(){
       scheduleBars(4,()=>{
         applySceneNow('BREAK');
         window.TWIS_LOOP_DECK?.commands?.setWash?.(true);
-        scheduleBars(3,()=>{
+        scheduleBars(2,()=>{
           window.TWIS_LOOP_DECK?.commands?.setWash?.(false);
-          buildBarsLeft=3;
+          buildBarsLeft=2;
           buildStep();
-          scheduleBars(3,()=>{
+          scheduleBars(2,()=>{
             applySceneNow('PEAK');
             window.TWIS_LOOP_DECK?.commands?.triggerPad?.(6,.82,window.TWIS_LOOP_DECK.commands.nextGrid('bar'));
             status('PEAK · full groove, no click-track layer.');
