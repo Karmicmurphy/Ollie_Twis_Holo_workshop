@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 
@@ -20,14 +19,44 @@ def test_foundry_url_is_loopback_only(monkeypatch):
         raise AssertionError("remote Foundry URL must be rejected")
 
 
-def test_compile_human_signal_posts_raw_text(monkeypatch):
+def test_compile_human_signal_routes_to_compile_job_and_returns_one_job_id(monkeypatch):
     seen={}
     def fake_post(path,payload,timeout=10.0):
         seen["path"]=path
         seen["payload"]=payload
-        return {"signal_id":"signal:test","raw_text":payload["raw_text"],"status":"NEEDS_INTERPRETATION"}
+        seen["timeout"]=timeout
+        return {
+            "job_id":"job:123",
+            "signal":{"signal_id":"signal:test","raw_text":payload["raw_text"]},
+            "job":{
+                "job_id":"job:123",
+                "status":"PENDING",
+                "capability_key":"temporal_compass.plan",
+            },
+        }
     monkeypatch.setattr(foundry_bridge,"_post",fake_post)
-    result=foundry_bridge.compile_human_signal("What's going on?")
-    assert seen["path"]=="/v1/human-signal"
-    assert seen["payload"]=={"raw_text":"What's going on?"}
-    assert result["signal_id"]=="signal:test"
+    result=foundry_bridge.compile_human_signal_job(
+        "What's going on?",
+        input_data={"workshop_project_id":"test"},
+    )
+    assert seen["path"]=="/v1/human-signal/compile-job"
+    assert seen["payload"]=={
+        "raw_text":"What's going on?",
+        "input_data":{"workshop_project_id":"test"},
+    }
+    assert result["job_id"]=="job:123"
+    assert result["job"]["job_id"]=="job:123"
+
+
+def test_compile_human_signal_rejects_split_or_missing_job_identity(monkeypatch):
+    monkeypatch.setattr(
+        foundry_bridge,
+        "_post",
+        lambda *args, **kwargs: {"job":{"job_id":"job:a"},"job_id":"job:b"},
+    )
+    try:
+        foundry_bridge.compile_human_signal_job("test")
+    except RuntimeError as exc:
+        assert "split job identity" in str(exc)
+    else:
+        raise AssertionError("split job identity must fail closed")
