@@ -67,5 +67,7 @@ def test_open_door_is_primary_human_arrival_surface():
     assert "You do not need the right words, the right category, or the right room." in html
     assert "/api/foundry/human-signal" in js
     assert "projectId:state.activeProject" in js
+    assert "execution_reconciliation?.status" in js
+    assert "arrivalJobId" in js
     assert "LOCAL_ROUTING_UNAVAILABLE" in js
     assert 'openRoom("talk")' in js
