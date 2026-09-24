@@ -25,6 +25,8 @@ from security import (
 )
 from generation_layer import create_generation_job, load_generation_adapters
 from flashriver_intake import stage_flashriver_package
+from foundry_bridge import compile_human_signal as foundry_compile_human_signal, foundry_base_url
+from source_yard_inventory import inventory_source_yard
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
@@ -50,6 +52,8 @@ CAPABILITIES = {
         "protocols": ["mcp-policy-gated", "ag-ui-event-contract", "a2a-card-gated"],
         "cloud": ["cloudflare-remote-hull-optional"],
         "sourceArchive": ["flashriver-intake-local"],
+        "foundry": ["loopback-human-signal-arrival-v0"],
+        "inventory": ["read-only-source-yard-v1", "zip-tar-member-listing"],
     },
     "permissions": {
         "default": "deny-dangerous-actions",
@@ -94,6 +98,12 @@ SECURITY_POLICY = {
         "cannotApproveCanon": True,
         "cannotDeletePermanentSource": True,
         "cannotSpendMoney": True,
+    },
+    "foundry": {
+        "authority": "advisory-routing-and-bounded-factory-only",
+        "transport": "loopback-http-only",
+        "url": foundry_base_url(),
+        "shellExecution": False,
     },
     "generation": {
         "adaptersDisabledByDefault": True,
@@ -516,6 +526,55 @@ class Handler(SimpleHTTPRequestHandler):
             return
         u = urllib.parse.urlparse(self.path)
         try:
+            if u.path == "/api/inventory-source-yard":
+                x = body_json(self)
+                source = x.get("path", "")
+                pid_raw = x.get("projectId")
+                result = inventory_source_yard(
+                    source,
+                    hash_files=bool(x.get("hashFiles", True)),
+                    inspect_archives=bool(x.get("inspectArchives", True)),
+                    max_files=int(x.get("maxFiles", 200000)),
+                )
+                manifest_path = None
+                if pid_raw:
+                    pid = safe_id(pid_raw)
+                    pd = project_dir(pid)
+                    manifests = pd / "sources" / "inventory"
+                    manifests.mkdir(parents=True, exist_ok=True)
+                    stamp = int(time.time())
+                    manifest = manifests / f"source-yard-{stamp}.json"
+                    manifest.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+                    manifest_path = str(manifest)
+                    con = connect()
+                    upsert_project(con, pid, pid, "Local source-yard inventory", "Review inventory and salvage candidates")
+                    add_receipt(con, pid, "source-yard.inventory", "human", {
+                        "root": result["root"],
+                        "fileCount": result["fileCount"],
+                        "archiveCount": result["archiveCount"],
+                        "manifestPath": manifest_path,
+                        "readOnly": True,
+                    })
+                    con.commit(); con.close()
+                json_response(self, 200, {"ok": True, "manifestPath": manifest_path, "inventory": result}); return
+            if u.path == "/api/foundry/human-signal":
+                x = body_json(self)
+                raw_text = x.get("rawText", "")
+                result = foundry_compile_human_signal(raw_text)
+                pid_raw = x.get("projectId")
+                if pid_raw:
+                    pid = safe_id(pid_raw)
+                    con = connect()
+                    exists = con.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone()
+                    if exists:
+                        add_receipt(con, pid, "foundry.human-signal.compile", "system", {
+                            "signalId": result.get("signal_id"),
+                            "status": result.get("status"),
+                            "foundryUrl": foundry_base_url(),
+                        })
+                        con.commit()
+                    con.close()
+                json_response(self, 200, {"ok": True, "foundry": result}); return
             if u.path == "/api/projects":
                 x = body_json(self); pid = safe_id(x.get("id") or x.get("title") or str(uuid.uuid4())); now = utc()
                 con = connect(); upsert_project(con, pid, x.get("title", "Untitled"), x.get("description", ""), x.get("nextAction", ""))
