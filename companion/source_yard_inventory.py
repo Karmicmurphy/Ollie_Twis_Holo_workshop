@@ -73,52 +73,70 @@ def inventory_source_yard(
     total_bytes = 0
     truncated = False
 
-    for path in source.rglob("*"):
-        skip, reason = skip_policy(path)
-        if skip:
-            skipped.append({"path": str(path), "reason": reason})
-            continue
-        if not path.is_file():
-            continue
-        if len(files) >= max_files:
-            truncated = True
-            break
+    stop = False
+    for dirpath, dirnames, filenames in os.walk(source, topdown=True, followlinks=False):
+        current = Path(dirpath)
 
-        try:
-            stat = path.stat()
-        except OSError:
-            skipped.append({"path": str(path), "reason": "stat failed"})
-            continue
-
-        rel = str(path.relative_to(source)).replace("\\", "/")
-        item: dict[str, Any] = {
-            "relativePath": rel,
-            "name": path.name,
-            "extension": "".join(path.suffixes).lower(),
-            "size": stat.st_size,
-            "mtimeNs": stat.st_mtime_ns,
-            "sha256": None,
-            "hashState": "NOT_REQUESTED" if not hash_files else "PENDING",
-        }
-        total_bytes += stat.st_size
-
-        if hash_files:
-            if stat.st_size <= hash_limit:
-                try:
-                    item["sha256"] = sha256_file(path)
-                    item["hashState"] = "HASHED"
-                except OSError:
-                    item["hashState"] = "READ_ERROR"
+        # Prune skipped directories before os.walk descends into them.
+        kept_dirs = []
+        for dirname in dirnames:
+            candidate = current / dirname
+            skip, reason = skip_policy(candidate)
+            if skip:
+                skipped.append({"path": str(candidate), "reason": reason})
             else:
-                item["hashState"] = "SKIPPED_SIZE_LIMIT"
+                kept_dirs.append(dirname)
+        dirnames[:] = kept_dirs
 
-        if inspect_archives and path.name.lower().endswith(ARCHIVE_SUFFIXES):
-            archive = _archive_members(path)
-            if archive is not None:
-                item["archive"] = archive
-                archive_count += 1
+        for filename in filenames:
+            path = current / filename
+            skip, reason = skip_policy(path)
+            if skip:
+                skipped.append({"path": str(path), "reason": reason})
+                continue
+            if len(files) >= max_files:
+                truncated = True
+                stop = True
+                break
 
-        files.append(item)
+            try:
+                stat = path.stat()
+            except OSError:
+                skipped.append({"path": str(path), "reason": "stat failed"})
+                continue
+
+            rel = str(path.relative_to(source)).replace("\\", "/")
+            item: dict[str, Any] = {
+                "relativePath": rel,
+                "name": path.name,
+                "extension": "".join(path.suffixes).lower(),
+                "size": stat.st_size,
+                "mtimeNs": stat.st_mtime_ns,
+                "sha256": None,
+                "hashState": "NOT_REQUESTED" if not hash_files else "PENDING",
+            }
+            total_bytes += stat.st_size
+
+            if hash_files:
+                if stat.st_size <= hash_limit:
+                    try:
+                        item["sha256"] = sha256_file(path)
+                        item["hashState"] = "HASHED"
+                    except OSError:
+                        item["hashState"] = "READ_ERROR"
+                else:
+                    item["hashState"] = "SKIPPED_SIZE_LIMIT"
+
+            if inspect_archives and path.name.lower().endswith(ARCHIVE_SUFFIXES):
+                archive = _archive_members(path)
+                if archive is not None:
+                    item["archive"] = archive
+                    archive_count += 1
+
+            files.append(item)
+
+        if stop:
+            break
 
     return {
         "schemaVersion": "source-yard-inventory-v1",
