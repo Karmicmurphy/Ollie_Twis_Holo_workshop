@@ -33,7 +33,7 @@ async function enterOpenDoor(text){
   state.arrival={
     signalId:foundry?.signal?.signal_id||"",
     jobId:foundry?.job_id||foundry?.job?.job_id||"",
-    status:foundry?.job?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
+    status:foundry?.execution_reconciliation?.status||foundry?.job?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
     rawText:raw,
     at:new Date().toISOString()
   };
