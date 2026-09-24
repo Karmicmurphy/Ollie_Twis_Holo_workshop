@@ -32,7 +32,7 @@ def _post(path: str, payload: dict[str, Any], *, timeout: float = 10.0) -> dict[
         headers={
             "Accept": "application/json",
             "Content-Type": "application/json; charset=utf-8",
-            "User-Agent": "twis-holo-workshop-foundry-bridge/0.1",
+            "User-Agent": "twis-holo-workshop-foundry-bridge/0.2",
         },
         method="POST",
     )
@@ -46,7 +46,24 @@ def _post(path: str, payload: dict[str, Any], *, timeout: float = 10.0) -> dict[
     return data
 
 
-def compile_human_signal(raw_text: str) -> dict[str, Any]:
+def compile_human_signal_job(
+    raw_text: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise ValueError("rawText is required")
-    return _post("/v1/human-signal", {"raw_text": raw_text})
+    result = _post(
+        "/v1/human-signal/compile-job",
+        {
+            "raw_text": raw_text,
+            "input_data": dict(input_data or {}),
+        },
+        timeout=35.0,
+    )
+    job_id = result.get("job_id") or (result.get("job") or {}).get("job_id")
+    if not isinstance(job_id, str) or not job_id.startswith("job:"):
+        raise RuntimeError("Foundry compile-job response is missing a valid job_id")
+    if (result.get("job") or {}).get("job_id") != job_id:
+        raise RuntimeError("Foundry compile-job response contains split job identity")
+    return result
