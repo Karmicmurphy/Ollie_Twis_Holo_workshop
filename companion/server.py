@@ -25,7 +25,7 @@ from security import (
 )
 from generation_layer import create_generation_job, load_generation_adapters
 from flashriver_intake import stage_flashriver_package
-from foundry_bridge import compile_human_signal as foundry_compile_human_signal, foundry_base_url
+from foundry_bridge import compile_human_signal_job as foundry_compile_human_signal_job, foundry_base_url
 from source_yard_inventory import inventory_source_yard
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,7 +52,7 @@ CAPABILITIES = {
         "protocols": ["mcp-policy-gated", "ag-ui-event-contract", "a2a-card-gated"],
         "cloud": ["cloudflare-remote-hull-optional"],
         "sourceArchive": ["flashriver-intake-local"],
-        "foundry": ["loopback-human-signal-arrival-v0"],
+        "foundry": ["loopback-human-signal-compile-job-v1"],
         "inventory": ["read-only-source-yard-v1", "zip-tar-member-listing"],
     },
     "permissions": {
@@ -213,6 +213,28 @@ def json_response(handler, status: int, data: Any):
 
 def body_json(handler) -> Any:
     return read_json_body(handler)
+
+
+def foundry_compile_input(project_id: str | None) -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    if project_id:
+        data["workshop_project_id"] = project_id
+
+    configured = os.environ.get("TWIS_FOUNDATION_EXECUTION_SPEC", "").strip()
+    if not configured:
+        return data
+
+    path = Path(configured).expanduser().resolve()
+    if not path.is_file():
+        raise ValueError("TWIS_FOUNDATION_EXECUTION_SPEC does not exist")
+    try:
+        spec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("TWIS_FOUNDATION_EXECUTION_SPEC is unreadable") from exc
+    if not isinstance(spec, dict):
+        raise ValueError("TWIS_FOUNDATION_EXECUTION_SPEC must contain a JSON object")
+    data["foundation_execution_spec"] = spec
+    return data
 
 
 def project_dir(project_id: str) -> Path:
@@ -560,16 +582,23 @@ class Handler(SimpleHTTPRequestHandler):
             if u.path == "/api/foundry/human-signal":
                 x = body_json(self)
                 raw_text = x.get("rawText", "")
-                result = foundry_compile_human_signal(raw_text)
                 pid_raw = x.get("projectId")
-                if pid_raw:
-                    pid = safe_id(pid_raw)
+                pid = safe_id(pid_raw) if pid_raw else None
+                result = foundry_compile_human_signal_job(
+                    raw_text,
+                    input_data=foundry_compile_input(pid),
+                )
+                if pid:
                     con = connect()
                     exists = con.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone()
                     if exists:
-                        add_receipt(con, pid, "foundry.human-signal.compile", "system", {
-                            "signalId": result.get("signal_id"),
-                            "status": result.get("status"),
+                        job = result.get("job") or {}
+                        signal = result.get("signal") or {}
+                        add_receipt(con, pid, "foundry.human-signal.compile-job", "system", {
+                            "signalId": signal.get("signal_id"),
+                            "jobId": result.get("job_id"),
+                            "status": job.get("status"),
+                            "capabilityKey": job.get("capability_key"),
                             "foundryUrl": foundry_base_url(),
                         })
                         con.commit()
