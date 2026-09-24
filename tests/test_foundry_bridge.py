@@ -48,6 +48,20 @@ def test_compile_human_signal_routes_to_compile_job_and_returns_one_job_id(monke
     assert result["job"]["job_id"]=="job:123"
 
 
+def test_compile_human_signal_normalizes_nested_job_identity(monkeypatch):
+    monkeypatch.setattr(
+        foundry_bridge,
+        "_post",
+        lambda *args, **kwargs: {
+            "signal":{"signal_id":"signal:test"},
+            "job":{"job_id":"job:nested","status":"PENDING"},
+        },
+    )
+    result=foundry_bridge.compile_human_signal_job("test")
+    assert result["job_id"]=="job:nested"
+    assert result["job"]["job_id"]=="job:nested"
+
+
 def test_compile_human_signal_rejects_split_or_missing_job_identity(monkeypatch):
     monkeypatch.setattr(
         foundry_bridge,
