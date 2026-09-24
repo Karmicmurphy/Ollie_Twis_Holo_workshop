@@ -1,6 +1,6 @@
 (() => {
 const KEY="twisHolo.full.v1"; const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const base={settings:{userName:"Randy",companionName:"Workshop",speakReplies:false,lowMotion:false,endpoint:"",model:"",apiKey:"",cloudflareUrl:""},projects:[],activeProject:"",items:[],chat:[],lastRoom:"home",arrival:{signalId:"",status:"",rawText:"",at:""},draft:{title:"Untitled",body:"",versions:[],songNotes:"",videoNotes:"",mission:"",findings:"",sources:""},music:{bpm:92,wave:"sine",root:48,tracks:{Kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],Snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],Hat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],Clap:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]},melody:[0,0,0,0,1,0,2,0,0,0,4,0,2,0,1,0]}};
+const base={settings:{userName:"Randy",companionName:"Workshop",speakReplies:false,lowMotion:false,endpoint:"",model:"",apiKey:"",cloudflareUrl:""},projects:[],activeProject:"",items:[],chat:[],lastRoom:"home",arrival:{signalId:"",intentId:"",jobId:"",capabilityKey:"",mode:"",status:"",rawText:"",at:""},draft:{title:"Untitled",body:"",versions:[],songNotes:"",videoNotes:"",mission:"",findings:"",sources:""},music:{bpm:92,wave:"sine",root:48,tracks:{Kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],Snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],Hat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],Clap:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]},melody:[0,0,0,0,1,0,2,0,0,0,4,0,2,0,1,0]}};
 let state=load(),companion=false,room="home",audioCtx=null,timer=null,step=0,media=[],imageOriginal=null,drawMode=false,drawing=false,lastPoint=null,modules=[];
 function clone(v){return JSON.parse(JSON.stringify(v))}function merge(a,b){for(const k in b){if(b[k]&&typeof b[k]==="object"&&!Array.isArray(b[k])&&a[k])merge(a[k],b[k]);else a[k]=b[k]}return a}
 function load(){try{return merge(clone(base),JSON.parse(localStorage.getItem(KEY)||"{}"))}catch{return clone(base)}}function save(){localStorage.setItem(KEY,JSON.stringify(state))}
@@ -32,13 +32,17 @@ async function enterOpenDoor(text){
   }
   state.arrival={
     signalId:foundry?.signal_id||"",
+    intentId:foundry?.intent_id||"",
+    jobId:foundry?.job_id||"",
+    capabilityKey:foundry?.capability_key||"",
+    mode:foundry?.mode||"",
     status:foundry?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
     rawText:raw,
     at:new Date().toISOString()
   };
   state.chat.push({role:"user",content:raw,arrivalSignalId:state.arrival.signalId||undefined});
   save();
-  status.textContent=foundry?"Got it. You don’t have to sort yourself into a box.":"Got it. The local routing layer isn’t available, but your words are preserved and you can keep going.";
+  status.textContent=foundry?.job_id?"Got it. I found a bounded path and gave it a job identity.":foundry?"Got it. You don’t have to sort yourself into a box.":"Got it. The local routing layer isn’t available, but your words are preserved and you can keep going.";
   $("#openDoorInput").value="";
   renderChat();
   openRoom("talk");
