@@ -66,4 +66,4 @@ def compile_human_signal_job(
         raise RuntimeError("Foundry compile-job response is missing a valid job_id")
     if (result.get("job") or {}).get("job_id") != job_id:
         raise RuntimeError("Foundry compile-job response contains split job identity")
-    return result
+    return {**result, "job_id": job_id}
