@@ -56,3 +56,16 @@ def test_ui_skill_and_harness_docs_exist():
     assert (ROOT / "docs" / "TWIS_HOLO_UI_SKILL.md").exists()
     assert (ROOT / "docs" / "TWIS_HOLO_MINI_HARNESS.md").exists()
     assert (ROOT / "docs" / "SCRAP_IRON_HOLO_UI_BUILD.md").exists()
+
+
+def test_open_door_is_primary_human_arrival_surface():
+    html = (ROOT / "app" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "app" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'id="openDoorForm"' in html
+    assert 'id="openDoorInput"' in html
+    assert "What’s going on?" in html
+    assert "You do not need the right words, the right category, or the right room." in html
+    assert "/api/foundry/human-signal" in js
+    assert "projectId:state.activeProject" in js
+    assert "LOCAL_ROUTING_UNAVAILABLE" in js
+    assert 'openRoom("talk")' in js
