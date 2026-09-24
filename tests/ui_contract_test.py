@@ -69,3 +69,11 @@ def test_open_door_is_primary_human_arrival_surface():
     assert "projectId:state.activeProject" in js
     assert "LOCAL_ROUTING_UNAVAILABLE" in js
     assert 'openRoom("talk")' in js
+
+
+def test_open_door_preserves_job_correlation_when_semantic_route_exists():
+    js = (ROOT / "app" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'jobId:foundry?.job_id||""' in js
+    assert 'intentId:foundry?.intent_id||""' in js
+    assert 'capabilityKey:foundry?.capability_key||""' in js
+    assert "I found a bounded path and gave it a job identity." in js

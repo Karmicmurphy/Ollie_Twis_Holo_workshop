@@ -25,7 +25,7 @@ from security import (
 )
 from generation_layer import create_generation_job, load_generation_adapters
 from flashriver_intake import stage_flashriver_package
-from foundry_bridge import compile_human_signal as foundry_compile_human_signal, foundry_base_url
+from foundry_bridge import route_human_signal as foundry_route_human_signal, foundry_base_url
 from source_yard_inventory import inventory_source_yard
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,7 +52,7 @@ CAPABILITIES = {
         "protocols": ["mcp-policy-gated", "ag-ui-event-contract", "a2a-card-gated"],
         "cloud": ["cloudflare-remote-hull-optional"],
         "sourceArchive": ["flashriver-intake-local"],
-        "foundry": ["loopback-human-signal-arrival-v0"],
+        "foundry": ["loopback-human-signal-arrival-v0", "optional-local-semantic-job-v0"],
         "inventory": ["read-only-source-yard-v1", "zip-tar-member-listing"],
     },
     "permissions": {
@@ -560,7 +560,7 @@ class Handler(SimpleHTTPRequestHandler):
             if u.path == "/api/foundry/human-signal":
                 x = body_json(self)
                 raw_text = x.get("rawText", "")
-                result = foundry_compile_human_signal(raw_text)
+                result = foundry_route_human_signal(raw_text)
                 pid_raw = x.get("projectId")
                 if pid_raw:
                     pid = safe_id(pid_raw)
@@ -569,6 +569,11 @@ class Handler(SimpleHTTPRequestHandler):
                     if exists:
                         add_receipt(con, pid, "foundry.human-signal.compile", "system", {
                             "signalId": result.get("signal_id"),
+                            "intentId": result.get("intent_id"),
+                            "jobId": result.get("job_id"),
+                            "capabilityKey": result.get("capability_key"),
+                            "approvalPosture": result.get("approval_posture"),
+                            "mode": result.get("mode"),
                             "status": result.get("status"),
                             "foundryUrl": foundry_base_url(),
                         })
