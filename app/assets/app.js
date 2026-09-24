@@ -1,6 +1,6 @@
 (() => {
 const KEY="twisHolo.full.v1"; const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const base={settings:{userName:"Randy",companionName:"Workshop",speakReplies:false,lowMotion:false,endpoint:"",model:"",apiKey:"",cloudflareUrl:""},projects:[],activeProject:"",items:[],chat:[],lastRoom:"home",draft:{title:"Untitled",body:"",versions:[],songNotes:"",videoNotes:"",mission:"",findings:"",sources:""},music:{bpm:92,wave:"sine",root:48,tracks:{Kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],Snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],Hat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],Clap:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]},melody:[0,0,0,0,1,0,2,0,0,0,4,0,2,0,1,0]}};
+const base={settings:{userName:"Randy",companionName:"Workshop",speakReplies:false,lowMotion:false,endpoint:"",model:"",apiKey:"",cloudflareUrl:""},projects:[],activeProject:"",items:[],chat:[],lastRoom:"home",arrival:{signalId:"",status:"",rawText:"",at:""},draft:{title:"Untitled",body:"",versions:[],songNotes:"",videoNotes:"",mission:"",findings:"",sources:""},music:{bpm:92,wave:"sine",root:48,tracks:{Kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],Snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],Hat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],Clap:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]},melody:[0,0,0,0,1,0,2,0,0,0,4,0,2,0,1,0]}};
 let state=load(),companion=false,room="home",audioCtx=null,timer=null,step=0,media=[],imageOriginal=null,drawMode=false,drawing=false,lastPoint=null,modules=[];
 function clone(v){return JSON.parse(JSON.stringify(v))}function merge(a,b){for(const k in b){if(b[k]&&typeof b[k]==="object"&&!Array.isArray(b[k])&&a[k])merge(a[k],b[k]);else a[k]=b[k]}return a}
 function load(){try{return merge(clone(base),JSON.parse(localStorage.getItem(KEY)||"{}"))}catch{return clone(base)}}function save(){localStorage.setItem(KEY,JSON.stringify(state))}
@@ -16,6 +16,34 @@ function active(){return state.projects.find(p=>p.id===state.activeProject)||sta
 function renderProjects(){$("#projectSelect").innerHTML=state.projects.map(p=>`<option value="${p.id}" ${p.id===state.activeProject?"selected":""}>${esc(p.title)}</option>`).join("")}
 $("#projectSelect").onchange=async()=>{state.activeProject=$("#projectSelect").value;save();await loadArtifacts();renderAll()}
 $("#newProject").onclick=async()=>{const title=prompt("Project name:");if(!title)return;await createProject(title,prompt("Description (optional):")||"");renderProjects();await loadArtifacts();openRoom("home")}
+async function enterOpenDoor(text){
+  const raw=String(text||"").trim();
+  if(!raw)return;
+  const status=$("#openDoorStatus");
+  status.textContent="I’ve got what you said. Finding the right path without making you pick a category…";
+  let foundry=null;
+  if(companion){
+    try{
+      const response=await api("/api/foundry/human-signal",{method:"POST",body:JSON.stringify({rawText:raw,projectId:state.activeProject})});
+      foundry=response?.foundry||null;
+    }catch(_err){
+      foundry=null;
+    }
+  }
+  state.arrival={
+    signalId:foundry?.signal_id||"",
+    status:foundry?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
+    rawText:raw,
+    at:new Date().toISOString()
+  };
+  state.chat.push({role:"user",content:raw,arrivalSignalId:state.arrival.signalId||undefined});
+  save();
+  status.textContent=foundry?"Got it. You don’t have to sort yourself into a box.":"Got it. The local routing layer isn’t available, but your words are preserved and you can keep going.";
+  $("#openDoorInput").value="";
+  renderChat();
+  openRoom("talk");
+}
+$("#openDoorForm").onsubmit=async e=>{e.preventDefault();await enterOpenDoor($("#openDoorInput").value)}
 function openRoom(r){room=r;state.lastRoom=r;save();$$(".room").forEach(x=>x.classList.toggle("active",x.dataset.panel===r));$$(".nav").forEach(x=>x.classList.toggle("active",x.dataset.room===r));const t={home:`Good to see you, ${state.settings.userName}.`,talk:"Talk",write:"Write",music:"Music",image:"Images",video:"Video",research:"Explore",code:"Build",import:"Recover",work:"My Work",modules:"Modules",settings:"Settings"};$("#title").textContent=t[r]||"Workshop";if(r==="work")renderWork();if(r==="code")refreshTree()}
 $$("[data-room]").forEach(b=>b.onclick=()=>openRoom(b.dataset.room));$("#dateLabel").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});$("#continueBtn").onclick=()=>openRoom(state.lastRoom==="home"?"talk":state.lastRoom)
 function itemHTML(i){return `<div class="item"><div><b>${esc(i.title)}</b><small>${esc(i.type)} · rev ${i.revisionNumber||0} · ${fmt(i.updatedAt)}</small></div><div><button data-open="${i.id}">Open</button> <button data-history="${i.id}">History</button> <button data-delete="${i.id}">Retire</button></div></div>`}
