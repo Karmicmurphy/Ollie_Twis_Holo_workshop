@@ -594,10 +594,11 @@ class Handler(SimpleHTTPRequestHandler):
                     if exists:
                         job = result.get("job") or {}
                         signal = result.get("signal") or {}
+                        canonical_job_id = result.get("job_id") or job.get("job_id")
                         add_receipt(con, pid, "foundry.human-signal.compile-job", "system", {
                             "signalId": signal.get("signal_id"),
-                            "jobId": result.get("job_id"),
-                            "status": job.get("status"),
+                            "jobId": canonical_job_id,
+                            "status": (result.get("execution_reconciliation") or {}).get("status") or job.get("status"),
                             "capabilityKey": job.get("capability_key"),
                             "foundryUrl": foundry_base_url(),
                         })
