@@ -39,3 +39,23 @@ def test_inventory_skips_secret_like_files(tmp_path: Path):
     assert "normal.txt" in names
     assert ".env" not in names
     assert result["skippedCount"] >= 1
+
+
+def test_inventory_prunes_skipped_directories_before_descent(tmp_path: Path):
+    blocked=tmp_path/"blocked"
+    blocked.mkdir()
+    (blocked/"should-never-be-seen.txt").write_text("nope",encoding="utf-8")
+    (tmp_path/"visible.txt").write_text("yes",encoding="utf-8")
+
+    visited=[]
+    def policy(path: Path):
+        visited.append(str(path))
+        if path.name=="blocked":
+            return True,"test blocked directory"
+        return False,""
+
+    result=inventory_source_yard(tmp_path,skip_policy=policy)
+    names={x["name"] for x in result["files"]}
+    assert "visible.txt" in names
+    assert "should-never-be-seen.txt" not in names
+    assert not any("should-never-be-seen.txt" in p for p in visited)
