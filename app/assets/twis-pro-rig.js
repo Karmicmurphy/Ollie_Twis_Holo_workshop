@@ -1,218 +1,59 @@
 (()=>{'use strict';
-const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)];
+const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
 const stems=['KICK','BASS','DRUMS','CHORDS','MELODY','ATMOS','VOCAL','FX'];
 const active={KICK:true,BASS:true,DRUMS:true,CHORDS:true,MELODY:false,ATMOS:true,VOCAL:false,FX:true};
-const sceneStates=[
- {KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:0,ATMOS:1,VOCAL:0,FX:1},
- {KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:0,FX:1},
- {KICK:0,BASS:0,DRUMS:0,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:1,FX:1},
- {KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:1,FX:1}
-];
-const deckGroups={A:['KICK','BASS','DRUMS'],B:['CHORDS','MELODY'],C:['VOCAL'],D:['ATMOS','FX']};
-let audio=null, started=false, step=0, energy=.45;
+const sceneStates=[{KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:0,ATMOS:1,VOCAL:0,FX:1},{KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:0,FX:1},{KICK:0,BASS:0,DRUMS:0,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:1,FX:1},{KICK:1,BASS:1,DRUMS:1,CHORDS:1,MELODY:1,ATMOS:1,VOCAL:1,FX:1}];
+const deckLetters=['A','B','C','D'];
+const deckState=Object.fromEntries(deckLetters.map(letter=>[letter,{letter,name:'EMPTY',loaded:false,playing:false,url:null,offset:0,startedAt:0,sourceBpm:124,rate:1,loop:false,loopBars:8,filtered:false,cut:false,fadeDown:false,fader:.78,lowDb:0,midDb:0,highDb:0,filterNorm:.92}]));
+let audio=null,started=false,step=0,energy=.45,bassOwner=null,silenced=false,silenceSnapshot=null,midiAccess=null;
 const roots={C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11};
 const scaleMap={MINOR:[0,2,3,5,7,8,10],DORIAN:[0,2,3,5,7,9,10],PHRYGIAN:[0,1,3,5,7,8,10]};
-let progression=[0,5,3,6], melodyShape=[0,2,4,2,5,4,2,1];
-
-function status(t){q('#status').textContent=t;}
-function noteFromDegree(deg,oct=4){
- const scale=scaleMap[q('#scale').value], key=q('#key').value;
- const idx=((deg%7)+7)%7, octShift=Math.floor(deg/7);
- const midi=12*(oct+1)+roots[key]+scale[idx]+12*octShift;
- return Tone.Frequency(midi,'midi').toNote();
-}
-function chordForBar(b){
- const d=progression[b%progression.length];
- return [noteFromDegree(d,3),noteFromDegree(d+2,3),noteFromDegree(d+4,3)];
-}
-function setStem(name,on){
- active[name]=!!on;
- if(audio?.channels?.[name]) audio.channels[name].gain.rampTo(on?1:0,.05);
- q('[data-stem="'+name+'"]')?.classList.toggle('on',!!on);
-}
-function applyScene(i){
- const s=sceneStates[i];
- stems.forEach(n=>setStem(n,!!s[n]));
- qa('.scene').forEach((b,k)=>b.classList.toggle('on',k===i));
- status('Scene '+['DEEP','DRIVE','BREAK','PEAK'][i]+' loaded.');
-}
-function applyMacros(){
- energy=+q('#energy').value;
- ['energy','space','delay','filter'].forEach(id=>q('#'+id+'V').textContent=Math.round(+q('#'+id).value*100));
- if(!audio)return;
- const space=+q('#space').value, dly=+q('#delay').value, f=+q('#filter').value;
- audio.reverb.wet.rampTo(space,.08);
- audio.delay.wet.rampTo(dly,.08);
- audio.masterFilter.frequency.rampTo(600+f*17500,.08);
- audio.bass.filterEnvelope.octaves=2+energy*3;
- audio.lead.volume.rampTo(-18+energy*9,.08);
- audio.oceanGain.gain.rampTo(.015+.11*space,.2);
-}
-function makeOcean(){
- const noise=new Tone.Noise('pink');
- const low=new Tone.Filter(900,'lowpass');
- const auto=new Tone.AutoFilter({frequency:.06,baseFrequency:180,octaves:3.2,depth:.9}).start();
- const gain=new Tone.Gain(.055);
- const swell=new Tone.LFO({frequency:.085,min:.015,max:.12}).start();
- swell.connect(gain.gain);
- noise.connect(low).connect(auto).connect(gain).connect(audio.channels.ATMOS);
- noise.start();
- return {noise,gain,swell};
-}
-async function initAudio(){
- if(audio) return audio;
- await Tone.start();
-
- const limiter=new Tone.Limiter(-1).toDestination();
- const comp=new Tone.Compressor(-14,3).connect(limiter);
- const masterFilter=new Tone.Filter(16000,'lowpass').connect(comp);
- const dry=new Tone.Gain(.95).connect(masterFilter);
- const reverb=new Tone.Reverb({decay:6.2,wet:.5}).connect(masterFilter);
- const delay=new Tone.FeedbackDelay('8n.',.28).connect(reverb);
-
- const channels={};
- stems.forEach(n=>channels[n]=new Tone.Gain(active[n]?1:0).connect(dry));
-
- const bass=new Tone.MonoSynth({
-   oscillator:{type:'sawtooth'},
-   filter:{Q:2,type:'lowpass',rolloff:-24},
-   envelope:{attack:.01,decay:.18,sustain:.35,release:.45},
-   filterEnvelope:{attack:.01,decay:.22,sustain:.18,release:.35,baseFrequency:70,octaves:4}
- }).connect(channels.BASS);
-
- const pad=new Tone.PolySynth(Tone.Synth,{
-   oscillator:{type:'triangle'},
-   envelope:{attack:.5,decay:.6,sustain:.55,release:3}
- }).connect(new Tone.Gain(.34).connect(reverb));
-
- const lead=new Tone.PolySynth(Tone.Synth,{
-   oscillator:{type:'sine'},
-   envelope:{attack:.015,decay:.18,sustain:.12,release:.7}
- }).connect(new Tone.Gain(.28).connect(delay));
-
- const kick=new Tone.MembraneSynth({
-   pitchDecay:.04,octaves:6,
-   envelope:{attack:.001,decay:.3,sustain:0,release:.05}
- }).connect(channels.KICK);
-
- const hat=new Tone.NoiseSynth({
-   noise:{type:'white'},
-   envelope:{attack:.001,decay:.045,sustain:0}
- }).connect(new Tone.Filter(6500,'highpass').connect(new Tone.Gain(.1).connect(channels.DRUMS)));
-
- const clap=new Tone.NoiseSynth({
-   noise:{type:'pink'},
-   envelope:{attack:.001,decay:.13,sustain:0}
- }).connect(new Tone.Filter(1200,'highpass').connect(new Tone.Gain(.1).connect(reverb)));
-
- const vocal=new Tone.Synth({
-   oscillator:{type:'fatsine'},
-   envelope:{attack:.08,decay:.25,sustain:.25,release:1.1}
- }).connect(new Tone.Gain(.14).connect(delay));
-
- audio={limiter,comp,masterFilter,dry,reverb,delay,channels,bass,pad,lead,kick,hat,clap,vocal};
- const ocean=makeOcean(); audio.oceanGain=ocean.gain; audio.ocean=ocean;
-
- audio.loop=new Tone.Loop(tick,'16n');
- Tone.Transport.bpm.value=+q('#bpm').value;
- applyMacros();
- return audio;
-}
-function tick(time){
- if(!audio)return;
- const s=step%16,b=Math.floor(step/16),d=progression[b%progression.length];
-
- if(active.KICK && [0,4,8,12].includes(s)) audio.kick.triggerAttackRelease('C1','8n',time,.9);
- if(active.DRUMS && s%2===1) audio.hat.triggerAttackRelease('32n',time,.55);
- if(active.DRUMS && [4,12].includes(s)) audio.clap.triggerAttackRelease('16n',time,.34);
-
- if(active.BASS && [0,3,6,8,11,14].includes(s))
-   audio.bass.triggerAttackRelease(noteFromDegree(d,2),s===14?'8n':'16n',time,.72);
-
- if(active.CHORDS && s===0)
-   audio.pad.triggerAttackRelease(chordForBar(b),'1m',time,.58);
-
- if(active.MELODY && s%2===0){
-   const n=noteFromDegree(melodyShape[(s/2)%8]+d,4);
-   audio.lead.triggerAttackRelease(n,'16n',time,.42+energy*.18);
- }
-
- if(active.VOCAL && s===0 && b%4===2)
-   audio.vocal.triggerAttackRelease(noteFromDegree(d+4,4),'2n',time,.28);
-
- if(active.FX && s===15 && b%4===3)
-   audio.clap.triggerAttackRelease('32n',time,.16);
-
- step++;
- Tone.Draw.schedule(()=>q('#clock').textContent='BAR '+String(Math.floor(step/16)+1).padStart(2,'0')+' · '+String((s%16)+1).padStart(2,'0'),time);
-}
-async function startIfNeeded(){
- if(started)return;
- await initAudio();
- audio.loop.start(0);
- Tone.Transport.start('+0.05');
- started=true;
- q('#play').textContent='■ STOP';
- status('Running. Every lit stem is audible. Tap anything and it changes the live mix.');
-}
-async function togglePlay(){
- if(!started){await startIfNeeded();return;}
- Tone.Transport.stop();
- Tone.Transport.position=0;
- step=0; started=false;
- q('#play').textContent='▶ PLAY'; q('#clock').textContent='STOPPED';
- status('Stopped. Nothing should be playing now.');
-}
+let progression=[0,5,3,6],melodyShape=[0,2,4,2,5,4,2,1];
+function status(t){const el=q('#status');if(el)el.textContent=t;}
+function clamp(v,min,max){return Math.min(max,Math.max(min,v));}
+function filterFrequency(norm){return 180*Math.pow(111.111,clamp(norm,0,1));}
+function masterBpm(){return +(q('#bpm')?.value||124);}
+function noteFromDegree(deg,oct=4){const scale=scaleMap[q('#scale').value],key=q('#key').value,idx=((deg%7)+7)%7,octShift=Math.floor(deg/7),midi=12*(oct+1)+roots[key]+scale[idx]+12*octShift;return Tone.Frequency(midi,'midi').toNote();}
+function chordForBar(b){const d=progression[b%progression.length];return [noteFromDegree(d,3),noteFromDegree(d+2,3),noteFromDegree(d+4,3)];}
+function setStem(name,on){active[name]=!!on;if(audio?.channels?.[name])audio.channels[name].gain.rampTo(on?1:0,.05);q('[data-stem="'+name+'"]')?.classList.toggle('on',!!on);}
+function applyScene(i){const s=sceneStates[i];stems.forEach(n=>setStem(n,!!s[n]));qa('.scene').forEach((b,k)=>b.classList.toggle('on',k===i));status('Internal engine scene '+['DEEP','DRIVE','BREAK','PEAK'][i]+' loaded.');}
+function applyMacros(){energy=+q('#energy').value;['energy','space','delay','filter'].forEach(id=>{const out=q('#'+id+'V');if(out)out.textContent=Math.round(+q('#'+id).value*100);});if(!audio)return;const space=+q('#space').value,dly=+q('#delay').value,f=+q('#filter').value;audio.reverb.wet.rampTo(space,.08);audio.delay.wet.rampTo(dly,.08);audio.masterFilter.frequency.rampTo(600+f*17500,.08);audio.bass.filterEnvelope.octaves=2+energy*3;audio.lead.volume.rampTo(-18+energy*9,.08);audio.oceanGain.gain.rampTo(.015+.11*space,.2);}
+function makeOcean(){const noise=new Tone.Noise('pink'),low=new Tone.Filter(900,'lowpass'),auto=new Tone.AutoFilter({frequency:.06,baseFrequency:180,octaves:3.2,depth:.9}).start(),gain=new Tone.Gain(.055),swell=new Tone.LFO({frequency:.085,min:.015,max:.12}).start();swell.connect(gain.gain);noise.connect(low).connect(auto).connect(gain).connect(audio.channels.ATMOS);noise.start();return {noise,gain,swell};}
+function makeDeck(letter,dry,delay){const input=new Tone.Gain(1),eq=new Tone.EQ3({low:0,mid:0,high:0}),filter=new Tone.Filter(16000,'lowpass'),fader=new Tone.Gain(deckState[letter].fader),echoSend=new Tone.Gain(0);input.connect(eq).connect(filter);filter.connect(fader).connect(dry);filter.connect(echoSend).connect(delay);const player=new Tone.Player({fadeIn:.01,fadeOut:.02}).connect(input);return {input,eq,filter,fader,echoSend,player};}
+async function initAudio(){if(audio)return audio;await Tone.start();const limiter=new Tone.Limiter(-1).toDestination(),comp=new Tone.Compressor(-14,3).connect(limiter),masterFilter=new Tone.Filter(16000,'lowpass').connect(comp),dry=new Tone.Gain(.95).connect(masterFilter),reverb=new Tone.Reverb({decay:6.2,wet:.5}).connect(masterFilter),delay=new Tone.FeedbackDelay('8n.',.28).connect(reverb),channels={};stems.forEach(n=>channels[n]=new Tone.Gain(active[n]?1:0).connect(dry));const decks={};deckLetters.forEach(letter=>decks[letter]=makeDeck(letter,dry,delay));const bass=new Tone.MonoSynth({oscillator:{type:'sawtooth'},filter:{Q:2,type:'lowpass',rolloff:-24},envelope:{attack:.01,decay:.18,sustain:.35,release:.45},filterEnvelope:{attack:.01,decay:.22,sustain:.18,release:.35,baseFrequency:70,octaves:4}}).connect(channels.BASS),pad=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'triangle'},envelope:{attack:.5,decay:.6,sustain:.55,release:3}}).connect(new Tone.Gain(.34).connect(reverb)),lead=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'sine'},envelope:{attack:.015,decay:.18,sustain:.12,release:.7}}).connect(new Tone.Gain(.28).connect(delay)),kick=new Tone.MembraneSynth({pitchDecay:.04,octaves:6,envelope:{attack:.001,decay:.3,sustain:0,release:.05}}).connect(channels.KICK),hat=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.045,sustain:0}}).connect(new Tone.Filter(6500,'highpass').connect(new Tone.Gain(.1).connect(channels.DRUMS))),clap=new Tone.NoiseSynth({noise:{type:'pink'},envelope:{attack:.001,decay:.13,sustain:0}}).connect(new Tone.Filter(1200,'highpass').connect(new Tone.Gain(.1).connect(reverb))),vocal=new Tone.Synth({oscillator:{type:'fatsine'},envelope:{attack:.08,decay:.25,sustain:.25,release:1.1}}).connect(new Tone.Gain(.14).connect(delay)),mic=new Tone.UserMedia(),micComp=new Tone.Compressor(-18,4),micGain=new Tone.Gain(.9),micEchoSend=new Tone.Gain(0),answerBus=new Tone.Gain(.95),answerSend=new Tone.Gain(.22),answerPlayer=new Tone.Player({fadeIn:.01,fadeOut:.04}).connect(answerBus);mic.connect(micComp).connect(micGain).connect(dry);micComp.connect(micEchoSend).connect(delay);answerBus.connect(dry);answerBus.connect(answerSend).connect(delay);audio={limiter,comp,masterFilter,dry,reverb,delay,channels,decks,bass,pad,lead,kick,hat,clap,vocal,mic,micComp,micGain,micEchoSend,answerBus,answerSend,answerPlayer};const ocean=makeOcean();audio.oceanGain=ocean.gain;audio.ocean=ocean;audio.loop=new Tone.Loop(tick,'16n');Tone.Transport.bpm.value=masterBpm();applyMacros();return audio;}
+function tick(time){if(!audio)return;const s=step%16,b=Math.floor(step/16),d=progression[b%progression.length];if(active.KICK&&[0,4,8,12].includes(s))audio.kick.triggerAttackRelease('C1','8n',time,.9);if(active.DRUMS&&s%2===1)audio.hat.triggerAttackRelease('32n',time,.55);if(active.DRUMS&&[4,12].includes(s))audio.clap.triggerAttackRelease('16n',time,.34);if(active.BASS&&[0,3,6,8,11,14].includes(s))audio.bass.triggerAttackRelease(noteFromDegree(d,2),s===14?'8n':'16n',time,.72);if(active.CHORDS&&s===0)audio.pad.triggerAttackRelease(chordForBar(b),'1m',time,.58);if(active.MELODY&&s%2===0)audio.lead.triggerAttackRelease(noteFromDegree(melodyShape[(s/2)%8]+d,4),'16n',time,.42+energy*.18);if(active.VOCAL&&s===0&&b%4===2)audio.vocal.triggerAttackRelease(noteFromDegree(d+4,4),'2n',time,.28);if(active.FX&&s===15&&b%4===3)audio.clap.triggerAttackRelease('32n',time,.16);step++;Tone.Draw.schedule(()=>{const el=q('#clock');if(el)el.textContent='BAR '+String(Math.floor(step/16)+1).padStart(2,'0')+' · '+String((s%16)+1).padStart(2,'0');},time);}
+async function startIfNeeded(){if(started)return;await initAudio();audio.loop.start(0);Tone.Transport.start('+0.05');started=true;q('#play').textContent='■ STOP ENGINE';status('Rusty Phasewire live desk armed. Load a track into any deck; the internal bed can run underneath it.');}
+async function togglePlay(){if(!started){await startIfNeeded();return;}deckLetters.forEach(stopDeck);Tone.Transport.stop();Tone.Transport.position=0;step=0;started=false;q('#play').textContent='▶ START ENGINE';const clock=q('#clock');if(clock)clock.textContent='STOPPED';status('Engine stopped. Loaded deck files remain ready.');refreshDeckUI();}
 async function ensureLiveAction(){if(!started)await startIfNeeded();}
-async function toggleDeck(letter){
- await ensureLiveAction();
- const group=deckGroups[letter], anyOn=group.some(n=>active[n]);
- group.forEach(n=>setStem(n,!anyOn));
- status('Deck '+letter+' '+(!anyOn?'ON':'OFF')+' · '+group.join(' / '));
-}
-async function toggleDeckFilter(btn){
- await ensureLiveAction();
- btn.classList.toggle('on');
- const on=btn.classList.contains('on');
- audio.masterFilter.frequency.rampTo(on?2200:600+(+q('#filter').value)*17500,.12);
- status('Deck filter '+(on?'CUT':'OPEN')+'.');
-}
-async function mutate(){
- await ensureLiveAction();
- const shapes=[
- [0,2,4,2,5,4,2,1],[0,1,3,4,3,1,6,4],[4,3,2,0,2,3,5,4],[0,4,2,5,4,2,1,6]
- ];
- const progs=[[0,5,3,6],[0,3,5,4],[0,6,5,3],[0,4,3,5]];
- melodyShape=shapes[Math.floor(Math.random()*shapes.length)].slice();
- progression=progs[Math.floor(Math.random()*progs.length)].slice();
- q('#mutate').classList.add('on');setTimeout(()=>q('#mutate').classList.remove('on'),250);
- status('FUCK IT changed the chord movement and melody contour.');
-}
-function buildUI(){
- q('#stems').innerHTML=stems.map(n=>'<button class="stem '+(active[n]?'on':'')+'" data-stem="'+n+'">'+n+'<small>STEM</small></button>').join('');
- qa('[data-stem]').forEach(b=>b.onclick=async()=>{await ensureLiveAction();setStem(b.dataset.stem,!active[b.dataset.stem]);status(b.dataset.stem+' '+(active[b.dataset.stem]?'ON':'OFF'));});
-
- q('#mixer').innerHTML=['KICK','BASS','DRUMS','MUSIC','VOCAL','MASTER'].map((n,i)=>'<div class="chan">'+n+'<input type="range" min="0" max="1" step=".01" value="'+(i===5?'.9':'.75')+'" data-mix="'+n+'"></div>').join('');
- qa('[data-mix]').forEach(el=>el.oninput=async()=>{
-   await ensureLiveAction();const v=+el.value,n=el.dataset.mix;
-   if(n==='MASTER')audio.limiter.volume.rampTo((v-1)*18,.05);
-   else if(n==='MUSIC'){audio.channels.CHORDS.gain.rampTo(v,.05);audio.channels.MELODY.gain.rampTo(v,.05);audio.channels.ATMOS.gain.rampTo(v*.8,.05);}
-   else if(audio.channels[n])audio.channels[n].gain.rampTo(v,.05);
- });
-
- q('#play').onclick=togglePlay;
- qa('.scene').forEach(b=>b.onclick=async()=>{await ensureLiveAction();applyScene(+b.dataset.scene);});
- q('#mutate').onclick=mutate;
- q('#bpm').onchange=async()=>{await ensureLiveAction();Tone.Transport.bpm.rampTo(+q('#bpm').value,.2);status('Tempo '+q('#bpm').value+' BPM.');};
- q('#key').onchange=async()=>{await ensureLiveAction();status('Key '+q('#key').value+' '+q('#scale').value+'.');};
- q('#scale').onchange=async()=>{await ensureLiveAction();status('Scale '+q('#scale').value+'.');};
- ['energy','space','delay','filter'].forEach(id=>q('#'+id).oninput=async()=>{await ensureLiveAction();applyMacros();});
-
- qa('[data-deck]').forEach(b=>b.onclick=async()=>{
-   if(b.dataset.act==='loop'){b.classList.toggle('on');await toggleDeck(b.dataset.deck);}
-   else await toggleDeckFilter(b);
- });
- applyMacros();
-}
+function deckPosition(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!s.loaded||!bus?.player?.buffer?.loaded)return 0;const duration=bus.player.buffer.duration||0;if(!s.playing)return duration?clamp(s.offset,0,Math.max(0,duration-.01)):0;const pos=s.offset+Math.max(0,Tone.now()-s.startedAt)*s.rate;return duration?pos%duration:pos;}
+async function loadDeck(letter,file){if(!file)return;await ensureLiveAction();const s=deckState[letter],bus=audio.decks[letter];if(s.playing)stopDeck(letter);if(s.url)URL.revokeObjectURL(s.url);const url=URL.createObjectURL(file);try{await bus.player.load(url);s.url=url;s.name=file.name;s.loaded=true;s.offset=0;s.playing=false;s.loop=false;s.rate=1;bus.player.playbackRate=1;bus.player.loop=false;if(!bassOwner)takeBass(letter);status(`Deck ${letter} loaded · ${file.name}`);}catch(err){URL.revokeObjectURL(url);s.url=null;s.loaded=false;s.name='LOAD FAILED';status(`Deck ${letter} could not decode that audio file.`);console.error(err);}refreshDeckUI();}
+function startDeck(letter,offset){const s=deckState[letter],bus=audio?.decks?.[letter];if(!s.loaded||!bus?.player?.buffer?.loaded){status(`Deck ${letter} is empty. Load audio first.`);return;}const when=Tone.now()+.035,duration=bus.player.buffer.duration||0;s.offset=duration?clamp(offset??s.offset,0,Math.max(0,duration-.02)):(offset??s.offset);try{bus.player.start(when,s.offset);s.startedAt=when;s.playing=true;}catch(err){console.error(err);status(`Deck ${letter} could not start.`);return;}status(`Deck ${letter} RETURN · ${s.name}`);refreshDeckUI();}
+function stopDeck(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!s.playing||!bus)return;s.offset=deckPosition(letter);try{bus.player.stop(Tone.now()+.01);}catch(_){}s.playing=false;refreshDeckUI();}
+async function toggleDeckPlayback(letter){await ensureLiveAction();const s=deckState[letter];if(!s.loaded){status(`Deck ${letter} is empty. LOAD a record first.`);return;}if(s.playing){stopDeck(letter);status(`Deck ${letter} CUT.`);}else startDeck(letter,s.offset);}
+async function teaseDeck(letter){await ensureLiveAction();const s=deckState[letter],bus=audio.decks[letter];if(!s.loaded){status(`Deck ${letter} has nothing to tease.`);return;}if(s.playing){echoThrow(letter,.42);status(`Deck ${letter} TEASE · echo flick on the live record.`);return;}const beat=60/masterBpm(),when=Tone.now()+.025;try{bus.player.start(when,s.offset,beat*2);}catch(err){console.error(err);status(`Deck ${letter} tease failed.`);return;}status(`Deck ${letter} CUE / TEASE · two beats.`);}
+function syncDeck(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;const src=clamp(+q(`[data-deck-bpm="${letter}"]`)?.value||masterBpm(),40,240);s.sourceBpm=src;s.rate=masterBpm()/src;bus.player.playbackRate=s.rate;status(`Deck ${letter} SYNC · ${src.toFixed(1)} → ${masterBpm()} BPM · repitch ${s.rate.toFixed(3)}×.`);refreshDeckUI();}
+function toggleLoop(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!s.loaded||!bus)return status(`Deck ${letter} is empty.`);s.loop=!s.loop;if(s.loop){s.loopBars=+q(`[data-deck-loopbars="${letter}"]`)?.value||8;const secondsPerBar=240/masterBpm()/s.rate,span=secondsPerBar*s.loopBars,pos=deckPosition(letter),start=Math.max(0,Math.floor(pos/span)*span);bus.player.loopStart=start;bus.player.loopEnd=start+span;bus.player.loop=true;status(`Deck ${letter} LOOP · ${s.loopBars} bars from ${start.toFixed(1)}s.`);}else{bus.player.loop=false;status(`Deck ${letter} LOOP released.`);}refreshDeckUI();}
+function setDeckEq(letter,band,value){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;const db=clamp(+value,-24,6);s[band+'Db']=db;if(band!=='low'||!bassOwner||bassOwner===letter)bus.eq[band].rampTo(db,.04);}
+function setDeckFilter(letter,value){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;s.filterNorm=clamp(+value,0,1);s.filtered=false;bus.filter.frequency.rampTo(filterFrequency(s.filterNorm),.05);q(`[data-deck-filterbtn="${letter}"]`)?.classList.remove('on');}
+function setDeckFader(letter,value){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;s.fader=clamp(+value,0,1);s.cut=false;s.fadeDown=false;bus.fader.gain.rampTo(s.fader,.035);refreshDeckUI();}
+function toggleFilterCut(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;s.filtered=!s.filtered;bus.filter.frequency.rampTo(s.filtered?2200:filterFrequency(s.filterNorm),.12);status(`Deck ${letter} FILTER ${s.filtered?'DOWN':'OPEN'}.`);refreshDeckUI();}
+function toggleCut(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;s.cut=!s.cut;bus.fader.gain.rampTo(s.cut?0:s.fader,.015);status(`Deck ${letter} ${s.cut?'CUT':'RETURN'}.`);refreshDeckUI();}
+function toggleFade(letter){const s=deckState[letter],bus=audio?.decks?.[letter];if(!bus)return;s.fadeDown=!s.fadeDown;bus.fader.gain.rampTo(s.fadeDown?0:s.fader,1.35);status(`Deck ${letter} FADE ${s.fadeDown?'OUT':'IN'}.`);refreshDeckUI();}
+function takeBass(letter){if(!audio?.decks?.[letter])return;const previous=bassOwner;bassOwner=letter;deckLetters.forEach(l=>audio.decks[l].eq.low.rampTo(l===letter?deckState[l].lowDb:-24,.22));status(`BASS SWAP${previous?' '+previous+' →':''} ${letter}. Deck ${letter} owns the low end.`);refreshDeckUI();}
+function echoThrow(letter,amount=.82){const bus=audio?.decks?.[letter];if(!bus)return;bus.echoSend.gain.cancelScheduledValues(Tone.now());bus.echoSend.gain.rampTo(amount,.025);setTimeout(()=>bus.echoSend.gain.rampTo(0,.65),260);q(`[data-deck-echo="${letter}"]`)?.classList.add('flash');setTimeout(()=>q(`[data-deck-echo="${letter}"]`)?.classList.remove('flash'),420);status(`Deck ${letter} ECHO THROW.`);}
+async function toggleMic(){await ensureLiveAction();const btn=q('#micToggle');if(audio.mic.state==='started'){audio.mic.close();btn?.classList.remove('on');if(btn)btn.textContent='MIC';status('MIC CUT.');return;}try{await audio.mic.open();btn?.classList.add('on');if(btn)btn.textContent='MIC LIVE';status('MIC LIVE · Rustwire voice channel front-center.');}catch(err){console.error(err);status('MIC blocked or unavailable. Check browser microphone permission.');}}
+function micEchoThrow(){if(!audio)return;audio.micEchoSend.gain.rampTo(.88,.02);setTimeout(()=>audio.micEchoSend.gain.rampTo(0,.8),300);status('MIC ECHO THROW.');}
+async function loadAnswer(file){if(!file)return;await ensureLiveAction();const url=URL.createObjectURL(file);try{await audio.answerPlayer.load(url);audio.answerUrl&&URL.revokeObjectURL(audio.answerUrl);audio.answerUrl=url;audio.answerName=file.name;status(`FEMALE ANSWER loaded · ${file.name}`);q('#answerTrigger').disabled=false;}catch(err){URL.revokeObjectURL(url);console.error(err);status('Female answer sample could not be decoded.');}}
+function triggerAnswer(){if(!audio?.answerPlayer?.buffer?.loaded)return status('Load a female answer sample first.');try{audio.answerPlayer.stop();}catch(_){}try{audio.answerPlayer.start(Tone.now()+.02,0);status(`FEMALE ANSWER · ${audio.answerName||'sample'}`);}catch(err){console.error(err);status('Female answer trigger failed.');}}
+function answerEchoThrow(){if(!audio)return;audio.answerSend.gain.rampTo(.72,.02);setTimeout(()=>audio.answerSend.gain.rampTo(.18,.9),320);status('FEMALE ANSWER ECHO THROW.');}
+function toggleSilenceReturn(){if(!audio)return;const btn=q('#silenceReturn');if(!silenced){silenceSnapshot=Object.fromEntries(deckLetters.map(l=>[l,audio.decks[l].fader.gain.value]));deckLetters.forEach(l=>audio.decks[l].fader.gain.rampTo(0,.06));silenced=true;if(btn)btn.textContent='RETURN';status('SILENCE · decks killed, tails and crowd space remain.');}else{deckLetters.forEach(l=>audio.decks[l].fader.gain.rampTo(silenceSnapshot?.[l]??deckState[l].fader,.08));silenced=false;if(btn)btn.textContent='SILENCE';status('RETURN · four-deck mix restored.');}}
+async function enableMidi(){if(!navigator.requestMIDIAccess)return status('Web MIDI is not available in this browser.');try{midiAccess=await navigator.requestMIDIAccess();const bind=()=>{for(const input of midiAccess.inputs.values())input.onmidimessage=onMidi;};bind();midiAccess.onstatechange=bind;q('#midiEnable')?.classList.add('on');status('MIDI LIVE · notes 36–39 play A–D, 40–43 tease, 44–47 take bass, 48 mic, 49 answer, 50 silence/return.');}catch(err){console.error(err);status('MIDI permission was not granted.');}}
+function onMidi(event){const [statusByte,d1,d2]=event.data,cmd=statusByte&0xf0;if(cmd===0x90&&d2>0){if(d1>=36&&d1<=39)toggleDeckPlayback(deckLetters[d1-36]);else if(d1>=40&&d1<=43)teaseDeck(deckLetters[d1-40]);else if(d1>=44&&d1<=47)takeBass(deckLetters[d1-44]);else if(d1===48)toggleMic();else if(d1===49)triggerAnswer();else if(d1===50)toggleSilenceReturn();}else if(cmd===0xb0&&d1>=20&&d1<=23){const letter=deckLetters[d1-20],v=d2/127,slider=q(`[data-deck-fader="${letter}"]`);if(slider)slider.value=v;setDeckFader(letter,v);}}
+async function mutate(){await ensureLiveAction();const shapes=[[0,2,4,2,5,4,2,1],[0,1,3,4,3,1,6,4],[4,3,2,0,2,3,5,4],[0,4,2,5,4,2,1,6]],progs=[[0,5,3,6],[0,3,5,4],[0,6,5,3],[0,4,3,5]];melodyShape=shapes[Math.floor(Math.random()*shapes.length)].slice();progression=progs[Math.floor(Math.random()*progs.length)].slice();q('#mutate').classList.add('on');setTimeout(()=>q('#mutate').classList.remove('on'),250);status('FUCK IT changed the internal bed chord movement and melody contour.');}
+function deckMarkup(letter){const s=deckState[letter];return `<article class="live-deck" data-live-deck="${letter}"><div class="deckhead"><strong>DECK ${letter}</strong><span data-deck-name="${letter}">${s.name}</span></div><label class="load">LOAD / RELOAD<input data-deck-load="${letter}" type="file" accept="audio/*"></label><div class="deck-actions"><button data-deck-play="${letter}">▶ RETURN</button><button data-deck-tease="${letter}">CUE / TEASE</button><button data-deck-loop="${letter}">LOOP</button><button data-deck-filterbtn="${letter}">FILTER</button><button data-deck-cut="${letter}">CUT</button><button data-deck-fade="${letter}">FADE</button><button data-deck-bass="${letter}">BASS TAKE</button><button data-deck-echo="${letter}">ECHO</button></div><div class="deck-meta"><label>SOURCE BPM<input data-deck-bpm="${letter}" type="number" min="40" max="240" step=".1" value="124"></label><button data-deck-sync="${letter}">SYNC</button><label>LOOP<select data-deck-loopbars="${letter}"><option>1</option><option>2</option><option>4</option><option selected>8</option><option>16</option></select></label></div><div class="deck-knobs"><label>HI<input data-deck-eq="high" data-deck="${letter}" type="range" min="-24" max="6" step="1" value="0"></label><label>MID<input data-deck-eq="mid" data-deck="${letter}" type="range" min="-24" max="6" step="1" value="0"></label><label>LOW<input data-deck-eq="low" data-deck="${letter}" type="range" min="-24" max="6" step="1" value="0"></label><label>FILTER<input data-deck-filter="${letter}" type="range" min="0" max="1" step=".01" value=".92"></label><label>FADER<input data-deck-fader="${letter}" type="range" min="0" max="1" step=".01" value=".78"></label></div></article>`;}
+function refreshDeckUI(){deckLetters.forEach(letter=>{const s=deckState[letter],card=q(`[data-live-deck="${letter}"]`);if(!card)return;q(`[data-deck-name="${letter}"]`).textContent=s.name;q(`[data-deck-play="${letter}"]`).textContent=s.playing?'■ CUT':'▶ RETURN';q(`[data-deck-loop="${letter}"]`).classList.toggle('on',s.loop);q(`[data-deck-filterbtn="${letter}"]`).classList.toggle('on',s.filtered);q(`[data-deck-cut="${letter}"]`).classList.toggle('on',s.cut);q(`[data-deck-fade="${letter}"]`).classList.toggle('on',s.fadeDown);q(`[data-deck-bass="${letter}"]`).classList.toggle('bass-owner',bassOwner===letter);card.classList.toggle('playing',s.playing);card.classList.toggle('loaded',s.loaded);});}
+function buildDeckUI(){q('#liveDecks').innerHTML=deckLetters.map(deckMarkup).join('');qa('[data-deck-load]').forEach(el=>el.onchange=e=>loadDeck(el.dataset.deckLoad,e.target.files?.[0]));qa('[data-deck-play]').forEach(el=>el.onclick=()=>toggleDeckPlayback(el.dataset.deckPlay));qa('[data-deck-tease]').forEach(el=>el.onclick=()=>teaseDeck(el.dataset.deckTease));qa('[data-deck-loop]').forEach(el=>el.onclick=()=>toggleLoop(el.dataset.deckLoop));qa('[data-deck-filterbtn]').forEach(el=>el.onclick=()=>toggleFilterCut(el.dataset.deckFilterbtn));qa('[data-deck-cut]').forEach(el=>el.onclick=()=>toggleCut(el.dataset.deckCut));qa('[data-deck-fade]').forEach(el=>el.onclick=()=>toggleFade(el.dataset.deckFade));qa('[data-deck-bass]').forEach(el=>el.onclick=()=>takeBass(el.dataset.deckBass));qa('[data-deck-echo]').forEach(el=>el.onclick=()=>echoThrow(el.dataset.deckEcho));qa('[data-deck-sync]').forEach(el=>el.onclick=()=>syncDeck(el.dataset.deckSync));qa('[data-deck-eq]').forEach(el=>el.oninput=()=>setDeckEq(el.dataset.deck,el.dataset.deckEq,el.value));qa('[data-deck-filter]').forEach(el=>el.oninput=()=>setDeckFilter(el.dataset.deckFilter,el.value));qa('[data-deck-fader]').forEach(el=>el.oninput=()=>setDeckFader(el.dataset.deckFader,el.value));refreshDeckUI();}
+function buildUI(){buildDeckUI();q('#stems').innerHTML=stems.map(n=>'<button class="stem '+(active[n]?'on':'')+'" data-stem="'+n+'">'+n+'<small>INTERNAL</small></button>').join('');qa('[data-stem]').forEach(b=>b.onclick=async()=>{await ensureLiveAction();setStem(b.dataset.stem,!active[b.dataset.stem]);status(b.dataset.stem+' '+(active[b.dataset.stem]?'ON':'OFF'));});q('#mixer').innerHTML=['KICK','BASS','DRUMS','MUSIC','VOCAL','MASTER'].map((n,i)=>'<div class="chan">'+n+'<input type="range" min="0" max="1" step=".01" value="'+(i===5?'.9':'.75')+'" data-mix="'+n+'"></div>').join('');qa('[data-mix]').forEach(el=>el.oninput=async()=>{await ensureLiveAction();const v=+el.value,n=el.dataset.mix;if(n==='MASTER')audio.limiter.volume.rampTo((v-1)*18,.05);else if(n==='MUSIC'){audio.channels.CHORDS.gain.rampTo(v,.05);audio.channels.MELODY.gain.rampTo(v,.05);audio.channels.ATMOS.gain.rampTo(v*.8,.05);}else if(audio.channels[n])audio.channels[n].gain.rampTo(v,.05);});q('#play').onclick=togglePlay;qa('.scene').forEach(b=>b.onclick=async()=>{await ensureLiveAction();applyScene(+b.dataset.scene);});q('#mutate').onclick=mutate;q('#bpm').onchange=async()=>{await ensureLiveAction();Tone.Transport.bpm.rampTo(masterBpm(),.2);status('Master tempo '+masterBpm()+' BPM. Press SYNC on loaded decks to repitch them to the new master tempo.');};q('#key').onchange=async()=>{await ensureLiveAction();status('Internal engine key '+q('#key').value+' '+q('#scale').value+'.');};q('#scale').onchange=async()=>{await ensureLiveAction();status('Internal engine scale '+q('#scale').value+'.');};['energy','space','delay','filter'].forEach(id=>q('#'+id).oninput=async()=>{await ensureLiveAction();applyMacros();});q('#micToggle').onclick=toggleMic;q('#micEcho').onclick=micEchoThrow;q('#answerLoad').onchange=e=>loadAnswer(e.target.files?.[0]);q('#answerTrigger').onclick=triggerAnswer;q('#answerEcho').onclick=answerEchoThrow;q('#silenceReturn').onclick=async()=>{await ensureLiveAction();toggleSilenceReturn();};q('#midiEnable').onclick=enableMidi;applyMacros();}
 buildUI();
+window.TWIS_RUSTY_PHASEWIRE={version:'0.1.0',deckState,start:ensureLiveAction,loadDeck,toggleDeckPlayback,teaseDeck,toggleLoop,takeBass,echoThrow,toggleMic,triggerAnswer,toggleSilenceReturn,enableMidi};
 })();
