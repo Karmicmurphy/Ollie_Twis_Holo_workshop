@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07090b">
+<title>RUSTY PHASEWIRE · PHONE LIVE RIG</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#07090b;color:#f1f5f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif}body{padding:10px}.wrap{max-width:760px;margin:auto;display:grid;gap:10px}.hero,.panel,.deck{border:1px solid #2a3941;background:#0b1114;border-radius:16px;padding:12px}.brand{font-size:11px;letter-spacing:.18em;color:#91a5ae}.title{font-size:28px;font-weight:1000;line-height:1;margin:3px 0 8px}.sub{font-size:12px;color:#91a5ae;line-height:1.4}.steps{font-size:13px;line-height:1.5}.steps b{color:#fff}.status{border:1px solid #3b4b53;background:#0a0f12;border-radius:12px;padding:10px;font-size:12px;min-height:42px}.good{border-color:#35b879}.bad{border-color:#c6535d}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.deck.playing{border-color:#35c98a;box-shadow:0 0 16px #35c98a22}.deckhead{display:flex;justify-content:space-between;gap:8px;align-items:center}.deckhead strong{font-size:18px}.name{max-width:70%;font-size:10px;color:#91a5ae;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.load{display:flex;align-items:center;justify-content:center;border:1px dashed #49606b;border-radius:10px;min-height:44px;font-weight:900;font-size:12px;margin-top:7px}.load input{display:none}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}.row.two{grid-template-columns:1fr 1fr}.row button,.panel button{min-height:44px;border-radius:10px;border:1px solid #34454e;background:#11191d;color:#fff;font-weight:900}.primary{background:#17392e!important;border-color:#38cc8d!important}.danger{background:#32161b!important;border-color:#7b3943!important}.orange{background:#3b250d!important;border-color:#a96824!important}.on{outline:2px solid #7895ff}.ctl{display:grid;grid-template-columns:74px 1fr 42px;gap:7px;align-items:center;font-size:10px;color:#91a5ae;margin-top:8px}.ctl input{width:100%}.bigbar{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.bigbar button,.bigbar label{min-height:54px}.answer{display:grid;grid-template-columns:1fr 1fr;gap:8px}.answer label{display:flex;justify-content:center;align-items:center;border:1px dashed #566a75;border-radius:10px;font-weight:900;font-size:12px}.answer input{display:none}.tiny{font-size:10px;color:#7d9098;line-height:1.35}.warn{font-size:11px;color:#cdb48e}.footer{font-size:10px;color:#758890;text-align:center;padding:6px}@media(max-width:620px){.grid{grid-template-columns:1fr}.title{font-size:26px}.row{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="brand">TWIS LOOP DECK · PHONE FIELD RIG</div>
+    <div class="title">RUSTY PHASEWIRE</div>
+    <div class="sub">Single-file mobile rig. No Tone.js. No CDN library. No account. No audio upload. Your tracks stay on your phone.</div>
+  </section>
+
+  <section class="panel steps">
+    <b>FIRST:</b> Tap <b>TEST SOUND</b>. You should hear a short low pulse. If you do, phone audio works. Then load one song into Deck A and tap PLAY A.
+    <div class="bigbar" style="margin-top:9px">
+      <button id="testSound" class="primary">🔊 TEST SOUND</button>
+      <button id="silenceReturn" class="danger">SILENCE</button>
+    </div>
+    <div id="status" class="status" style="margin-top:9px">Ready. Tap TEST SOUND first.</div>
+    <div class="warn" style="margin-top:7px">If microphone permission fails inside ChatGPT's browser, open this same page in Chrome and tap MIC again.</div>
+  </section>
+
+  <section class="grid" id="decks"></section>
+
+  <section class="panel">
+    <div class="brand">LIVE VOICE + FEMALE ANSWER</div>
+    <div class="bigbar" style="margin-top:8px">
+      <button id="mic" class="primary">🎤 MIC OFF</button>
+      <button id="micEcho">MIC ECHO</button>
+    </div>
+    <div class="answer" style="margin-top:8px">
+      <label>LOAD FEMALE ANSWER<input id="answerFile" type="file" accept="audio/*"></label>
+      <button id="answerFire" disabled>FIRE ANSWER</button>
+    </div>
+    <div class="tiny" style="margin-top:7px">Use headphones with live mic if possible. Phone speakers can feed back into the microphone.</div>
+  </section>
+
+  <div class="footer">cue → tease → loop → cut → fade → bass swap → mic → female answer → filter → drop → echo → silence → return</div>
+</div>
+<script>
+(()=>{'use strict';
+const $=s=>document.querySelector(s);
+const statusEl=$('#status');
+const AC=window.AudioContext||window.webkitAudioContext;
+let ctx=null,master=null,compressor=null,micStream=null,micSource=null,micGain=null,micDelay=null,micWet=null,silenced=false,masterBeforeSilence=.9,bassOwner=null,answer=null;
+const deckLetters=['A','B','C','D'];
+const decks={};
+function say(msg,kind=''){statusEl.textContent=msg;statusEl.className='status '+kind;}
+async function ensureAudio(){
+  if(!AC){say('This browser does not support Web Audio. Open the page in current Chrome.', 'bad');throw new Error('WebAudio unavailable');}
+  if(!ctx){
+    ctx=new AC(); compressor=ctx.createDynamicsCompressor(); master=ctx.createGain(); master.gain.value=.9; master.connect(compressor).connect(ctx.destination);
+  }
+  if(ctx.state==='suspended') await ctx.resume();
+  return ctx;
+}
+function logFreq(norm){return 180*Math.pow(111.111,Math.max(0,Math.min(1,norm)));}
+function buildDeck(letter){
+  const el=document.createElement('div');el.className='deck';el.dataset.deck=letter;
+  el.innerHTML=`<div class="deckhead"><strong>DECK ${letter}</strong><span class="name" data-name>EMPTY</span></div>
+  <label class="load">LOAD AUDIO<input type="file" accept="audio/*" data-file></label>
+  <div class="row"><button class="primary" data-play>PLAY ${letter}</button><button data-tease>TEASE</button><button data-loop>LOOP 4</button></div>
+  <div class="row"><button data-cut>CUT</button><button data-echo>ECHO</button><button class="orange" data-bass>BASS TAKE</button></div>
+  <div class="ctl"><span>FILTER</span><input data-filter type="range" min="0" max="1" step=".01" value=".95"><b data-filterv>95</b></div>
+  <div class="ctl"><span>VOLUME</span><input data-vol type="range" min="0" max="1" step=".01" value=".80"><b data-volv>80</b></div>`;
+  $('#decks').appendChild(el);
+  const audioEl=new Audio();audioEl.preload='metadata';audioEl.playsInline=true;
+  const d={letter,el,audioEl,url:null,source:null,low:null,filter:null,gain:null,delay:null,feedback:null,wet:null,looping:false,loopStart:0,loopEnd:0,raf:0};decks[letter]=d;
+  el.querySelector('[data-file]').addEventListener('change',e=>loadDeck(d,e.target.files?.[0]));
+  el.querySelector('[data-play]').addEventListener('click',()=>togglePlay(d));
+  el.querySelector('[data-tease]').addEventListener('click',()=>tease(d));
+  el.querySelector('[data-loop]').addEventListener('click',()=>toggleLoop(d));
+  el.querySelector('[data-cut]').addEventListener('click',()=>cut(d));
+  el.querySelector('[data-echo]').addEventListener('click',()=>echoThrow(d));
+  el.querySelector('[data-bass]').addEventListener('click',()=>takeBass(d));
+  el.querySelector('[data-filter]').addEventListener('input',e=>{const v=+e.target.value;el.querySelector('[data-filterv]').textContent=Math.round(v*100);if(d.filter)d.filter.frequency.setTargetAtTime(logFreq(v),ctx.currentTime,.03);});
+  el.querySelector('[data-vol]').addEventListener('input',e=>{const v=+e.target.value;el.querySelector('[data-volv]').textContent=Math.round(v*100);if(d.gain)d.gain.gain.setTargetAtTime(v,ctx.currentTime,.03);});
+  audioEl.addEventListener('play',()=>refresh(d));audioEl.addEventListener('pause',()=>refresh(d));audioEl.addEventListener('ended',()=>refresh(d));
+}
+async function wireDeck(d){
+  await ensureAudio();if(d.source)return;
+  d.source=ctx.createMediaElementSource(d.audioEl);d.low=ctx.createBiquadFilter();d.low.type='lowshelf';d.low.frequency.value=180;d.low.gain.value=0;
+  d.filter=ctx.createBiquadFilter();d.filter.type='lowpass';d.filter.frequency.value=18000;d.filter.Q.value=.6;
+  d.gain=ctx.createGain();d.gain.gain.value=.8;d.delay=ctx.createDelay(2);d.delay.delayTime.value=.32;d.feedback=ctx.createGain();d.feedback.gain.value=.34;d.wet=ctx.createGain();d.wet.gain.value=0;
+  d.source.connect(d.low).connect(d.filter);d.filter.connect(d.gain).connect(master);d.filter.connect(d.delay);d.delay.connect(d.wet).connect(master);d.delay.connect(d.feedback).connect(d.delay);
+}
+async function loadDeck(d,file){if(!file)return;await wireDeck(d);if(d.url)URL.revokeObjectURL(d.url);d.url=URL.createObjectURL(file);d.audioEl.pause();d.audioEl.src=d.url;d.audioEl.load();d.el.querySelector('[data-name]').textContent=file.name;d.looping=false;d.el.querySelector('[data-loop]').classList.remove('on');if(!bassOwner)takeBass(d);say(`Deck ${d.letter} loaded: ${file.name}`,'good');}
+async function togglePlay(d){await wireDeck(d);if(!d.audioEl.src){say(`Deck ${d.letter} is empty. Tap LOAD AUDIO first.`,'bad');return;}try{if(d.audioEl.paused){await d.audioEl.play();say(`Deck ${d.letter} playing.`,'good');}else{d.audioEl.pause();say(`Deck ${d.letter} paused.`);}refresh(d);}catch(err){say(`Deck ${d.letter} could not play: ${err.message}. Open in Chrome and try again.`,'bad');}}
+function refresh(d){const playing=!d.audioEl.paused&&!d.audioEl.ended;d.el.classList.toggle('playing',playing);d.el.querySelector('[data-play]').textContent=playing?`PAUSE ${d.letter}`:`PLAY ${d.letter}`;}
+async function tease(d){await wireDeck(d);if(!d.audioEl.src){say(`Deck ${d.letter} is empty.`,'bad');return;}const wasPaused=d.audioEl.paused,pos=d.audioEl.currentTime;try{await d.audioEl.play();say(`Deck ${d.letter} TEASE · two beats.`,'good');setTimeout(()=>{if(wasPaused){d.audioEl.pause();try{d.audioEl.currentTime=pos}catch(_){}}refresh(d);},Math.round((120/124)*1000));}catch(err){say(`Tease failed: ${err.message}`,'bad');}}
+function loopMonitor(d){cancelAnimationFrame(d.raf);const step=()=>{if(d.looping&&!d.audioEl.paused&&d.audioEl.currentTime>=d.loopEnd){try{d.audioEl.currentTime=d.loopStart}catch(_){}}if(d.looping)d.raf=requestAnimationFrame(step);};d.raf=requestAnimationFrame(step);}
+async function toggleLoop(d){await wireDeck(d);if(!d.audioEl.src){say(`Deck ${d.letter} is empty.`,'bad');return;}d.looping=!d.looping;const b=d.el.querySelector('[data-loop]');if(d.looping){const bar=240/124;d.loopStart=d.audioEl.currentTime;d.loopEnd=Math.min(d.audioEl.duration||Infinity,d.loopStart+bar*4);b.classList.add('on');b.textContent='LOOP ON';loopMonitor(d);say(`Deck ${d.letter} looping about 4 bars from current position.`,'good');}else{cancelAnimationFrame(d.raf);b.classList.remove('on');b.textContent='LOOP 4';say(`Deck ${d.letter} loop released.`);}}
+async function cut(d){await wireDeck(d);if(!d.gain)return;const now=ctx.currentTime;if(d.gain.gain.value>.01){d.gain.gain.setTargetAtTime(0,now,.015);d.el.querySelector('[data-cut]').classList.add('on');say(`Deck ${d.letter} CUT.`);}else{const v=+(d.el.querySelector('[data-vol]').value||.8);d.gain.gain.setTargetAtTime(v,now,.02);d.el.querySelector('[data-cut]').classList.remove('on');say(`Deck ${d.letter} RETURN.`,'good');}}
+async function echoThrow(d){await wireDeck(d);if(!d.wet)return;const now=ctx.currentTime;d.wet.gain.cancelScheduledValues(now);d.wet.gain.setValueAtTime(.75,now);d.wet.gain.exponentialRampToValueAtTime(.001,now+2.2);say(`Deck ${d.letter} ECHO THROW.`,'good');}
+async function takeBass(d){await wireDeck(d);bassOwner=d.letter;for(const [letter,x] of Object.entries(decks)){if(!x.low)continue;x.low.gain.setTargetAtTime(letter===d.letter?3:-24,ctx.currentTime,.06);x.el.querySelector('[data-bass]').classList.toggle('on',letter===d.letter);}say(`Deck ${d.letter} owns the bass.`,'good');}
+async function testSound(){try{await ensureAudio();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=74;g.gain.setValueAtTime(.0001,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.24,ctx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.48);o.connect(g).connect(master);o.start();o.stop(ctx.currentTime+.52);say('TEST SOUND fired. If you heard the low pulse, audio is working. Now load Deck A.','good');}catch(err){say(`Audio failed: ${err.message}. Open this page in Chrome.`,'bad');}}
+async function toggleMic(){try{await ensureAudio();const b=$('#mic');if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;if(micSource)try{micSource.disconnect()}catch(_){}b.textContent='🎤 MIC OFF';b.classList.remove('on');say('Microphone off.');return;}if(!navigator.mediaDevices?.getUserMedia)throw new Error('microphone API unavailable in this browser');micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}});micSource=ctx.createMediaStreamSource(micStream);const comp=ctx.createDynamicsCompressor();micGain=ctx.createGain();micGain.gain.value=.6;micDelay=ctx.createDelay(2);micDelay.delayTime.value=.34;micWet=ctx.createGain();micWet.gain.value=0;const fb=ctx.createGain();fb.gain.value=.28;micSource.connect(comp).connect(micGain).connect(master);comp.connect(micDelay);micDelay.connect(micWet).connect(master);micDelay.connect(fb).connect(micDelay);b.textContent='🎤 MIC ON';b.classList.add('on');say('Microphone ON. Use headphones if the phone starts feeding back.','good');}catch(err){say(`MIC FAILED: ${err.message}. Open this page in Chrome, allow microphone permission, and try again.`,'bad');}}
+async function micEcho(){await ensureAudio();if(!micWet){say('Turn MIC on first.','bad');return;}const now=ctx.currentTime;micWet.gain.cancelScheduledValues(now);micWet.gain.setValueAtTime(.65,now);micWet.gain.exponentialRampToValueAtTime(.001,now+2);say('MIC ECHO THROW.','good');}
+async function loadAnswer(file){if(!file)return;await ensureAudio();if(!answer){const a=new Audio();a.playsInline=true;const src=ctx.createMediaElementSource(a),g=ctx.createGain(),delay=ctx.createDelay(2),wet=ctx.createGain(),fb=ctx.createGain();g.gain.value=.95;delay.delayTime.value=.38;wet.gain.value=.22;fb.gain.value=.25;src.connect(g).connect(master);src.connect(delay);delay.connect(wet).connect(master);delay.connect(fb).connect(delay);answer={a,url:null};}if(answer.url)URL.revokeObjectURL(answer.url);answer.url=URL.createObjectURL(file);answer.a.src=answer.url;answer.a.load();$('#answerFire').disabled=false;say(`Female answer loaded: ${file.name}`,'good');}
+async function fireAnswer(){await ensureAudio();if(!answer?.a?.src){say('Load a female answer sample first.','bad');return;}try{answer.a.currentTime=0;await answer.a.play();say('FEMALE ANSWER fired.','good');}catch(err){say(`Answer failed: ${err.message}`,'bad');}}
+async function silenceReturn(){await ensureAudio();const b=$('#silenceReturn'),now=ctx.currentTime;if(!silenced){masterBeforeSilence=master.gain.value||.9;master.gain.setTargetAtTime(0,now,.035);silenced=true;b.textContent='RETURN';b.classList.add('on');say('SILENCE. Hit RETURN when you want the room back.');}else{master.gain.setTargetAtTime(masterBeforeSilence||.9,now,.04);silenced=false;b.textContent='SILENCE';b.classList.remove('on');say('RETURN.','good');}}
+deckLetters.forEach(buildDeck);
+$('#testSound').addEventListener('click',testSound);$('#silenceReturn').addEventListener('click',silenceReturn);$('#mic').addEventListener('click',toggleMic);$('#micEcho').addEventListener('click',micEcho);$('#answerFile').addEventListener('change',e=>loadAnswer(e.target.files?.[0]));$('#answerFire').addEventListener('click',fireAnswer);
+window.addEventListener('error',e=>say(`PAGE ERROR: ${e.message}`,'bad'));
+})();
+</script>
+</body>
+</html>
