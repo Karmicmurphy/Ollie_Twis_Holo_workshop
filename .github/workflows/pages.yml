@@ -2,7 +2,7 @@ name: USE MY LOOPING DECK
 
 on:
   push:
-    branches: [main]
+    branches: [main, living-workshop-main-build]
     paths:
       - 'app/**'
       - '.github/workflows/pages.yml'
@@ -22,7 +22,7 @@ jobs:
     name: Publish Loop Deck
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}loop-deck.html
+      url: ${{ steps.deployment.outputs.page_url }}pro-rig.html
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Workshop
@@ -40,6 +40,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Show Loop Deck URL
+      - name: Show Phone URLs
         run: |
+          echo "RUSTY PHASEWIRE: ${{ steps.deployment.outputs.page_url }}pro-rig.html"
           echo "TWIS LOOP DECK: ${{ steps.deployment.outputs.page_url }}loop-deck.html"
