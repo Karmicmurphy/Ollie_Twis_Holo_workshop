@@ -4,61 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#07090b">
-<title>TWIS PRO RIG</title>
+<title>RUSTY PHASEWIRE · TWIS PRO RIG</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <style>
-*{box-sizing:border-box}html,body{margin:0;background:#07090b;color:#edf3f5;font-family:system-ui,sans-serif;min-height:100%}
-body{padding:12px}.rig{max-width:760px;margin:auto;display:grid;gap:10px}
-.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.brand{font-size:11px;letter-spacing:.22em;color:#8ea0a8}.title{font-size:30px;font-weight:1000;line-height:1}.sub{font-size:11px;color:#81949b}
-button,select,input{font:inherit}.transport{display:grid;grid-template-columns:1.2fr .8fr .8fr .8fr;gap:7px}
-button,select{min-height:44px;border-radius:10px;border:1px solid #334047;background:#10161a;color:#fff;font-weight:800}
-#play{background:#17392e;border-color:#38cc8d}.meter{font-size:11px;padding:8px;border:1px solid #26343b;border-radius:10px;background:#0b1114;text-align:center}
-.decks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.deck{border:1px solid #29383f;background:#0b1114;border-radius:14px;padding:9px;display:grid;gap:7px}
-.deck h3{margin:0;font-size:12px;letter-spacing:.14em}.deckrow{display:grid;grid-template-columns:1fr 1fr;gap:6px}.deck button.on{border-color:#6f8dff;background:#15204a}
-.stems{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.stem{min-height:62px}.stem.on{background:#172750;border-color:#7895ff;box-shadow:0 0 14px #506dff44}.stem small{display:block;color:#8ea0a8;font-size:9px;margin-top:3px}
-.sceneRow{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.sceneRow button.on{background:#3a1f52;border-color:#b276ff}
-.macros{border:1px solid #29383f;background:#0b1114;border-radius:14px;padding:10px;display:grid;gap:10px}.macro{display:grid;grid-template-columns:78px 1fr 45px;gap:8px;align-items:center;font-size:11px}.macro input{width:100%}
-.mixer{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.chan{border:1px solid #29383f;border-radius:10px;padding:6px;background:#0b1114;text-align:center;font-size:9px}.chan input{width:100%;writing-mode:bt-lr;appearance:slider-vertical;height:90px}.credits{font-size:9px;color:#65777e;line-height:1.4}.status{font-size:11px;color:#94a8af;min-height:18px;text-align:center}
-@media(max-width:430px){body{padding:8px}.title{font-size:26px}.transport{grid-template-columns:1fr 1fr}.decks{grid-template-columns:1fr 1fr}.stems{grid-template-columns:repeat(4,1fr)}.mixer{grid-template-columns:repeat(6,1fr)}}
+*{box-sizing:border-box}html,body{margin:0;background:#07090b;color:#edf3f5;font-family:system-ui,sans-serif;min-height:100%}body{padding:12px}.rig{max-width:1040px;margin:auto;display:grid;gap:10px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.brand{font-size:11px;letter-spacing:.22em;color:#8ea0a8}.title{font-size:30px;font-weight:1000;line-height:1}.sub{font-size:11px;color:#81949b;max-width:720px}button,select,input{font:inherit}.transport{display:grid;grid-template-columns:1.4fr .7fr .7fr .7fr;gap:7px}button,select{min-height:44px;border-radius:10px;border:1px solid #334047;background:#10161a;color:#fff;font-weight:800}button.on{border-color:#778fff;background:#16204b}button.flash{box-shadow:0 0 0 2px #fff6,0 0 20px #8aa0ff99}.meter{font-size:11px;padding:8px;border:1px solid #26343b;border-radius:10px;background:#0b1114;text-align:center}.performance-law{border:1px solid #4b3a2d;background:#15100c;border-radius:14px;padding:10px;font-size:11px;color:#d4c7bb}.performance-law b{color:#fff}.actionbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}.answer-load{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #334047;border-radius:10px;background:#10161a;font-weight:900;font-size:12px;cursor:pointer}.answer-load input,.load input{display:none}.live-decks{display:grid;grid-template-columns:1fr 1fr;gap:9px}.live-deck{border:1px solid #29383f;background:#0b1114;border-radius:15px;padding:10px;display:grid;gap:8px}.live-deck.loaded{border-color:#466171}.live-deck.playing{border-color:#42c88e;box-shadow:0 0 16px #36c68922}.deckhead{display:flex;justify-content:space-between;gap:8px;align-items:center}.deckhead strong{letter-spacing:.16em}.deckhead span{font-size:10px;color:#91a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}.load{min-height:38px;border:1px dashed #3a4c55;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#afc0c8;cursor:pointer}.deck-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.deck-actions button{min-height:38px;font-size:10px;padding:4px}.deck-actions .bass-owner,[data-deck-bass].bass-owner{background:#4c2a08;border-color:#f0a43c;color:#fff}.deck-meta{display:grid;grid-template-columns:1.4fr .7fr 1fr;gap:6px;align-items:end}.deck-meta label,.deck-knobs label{font-size:9px;color:#91a4ae;font-weight:800}.deck-meta input,.deck-meta select{width:100%;min-height:36px;border:1px solid #334047;border-radius:8px;background:#0c1216;color:#fff;padding:4px}.deck-knobs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.deck-knobs input{width:100%}.engine{border:1px solid #29383f;background:#0b1114;border-radius:14px;padding:10px;display:grid;gap:9px}.engine h3{margin:0;font-size:12px;letter-spacing:.12em}.stems{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}.stem{min-height:54px;font-size:10px}.stem.on{background:#172750;border-color:#7895ff;box-shadow:0 0 14px #506dff44}.stem small{display:block;color:#8ea0a8;font-size:8px;margin-top:3px}.sceneRow{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.sceneRow button.on{background:#3a1f52;border-color:#b276ff}.macros{display:grid;gap:8px}.macro{display:grid;grid-template-columns:78px 1fr 45px;gap:8px;align-items:center;font-size:11px}.macro input{width:100%}.mixer{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.chan{border:1px solid #29383f;border-radius:10px;padding:6px;background:#0b1114;text-align:center;font-size:9px}.chan input{width:100%;writing-mode:bt-lr;appearance:slider-vertical;height:80px}.credits{font-size:9px;color:#65777e;line-height:1.4}.status{font-size:11px;color:#b7c7cd;min-height:30px;text-align:center;padding:8px;border:1px solid #27353c;border-radius:10px;background:#0b1114}@media(max-width:700px){body{padding:8px}.title{font-size:26px}.transport{grid-template-columns:1fr 1fr}.actionbar{grid-template-columns:repeat(3,1fr)}.live-decks{grid-template-columns:1fr}.stems{grid-template-columns:repeat(4,1fr)}.mixer{grid-template-columns:repeat(6,1fr)}}
 </style>
 </head>
 <body>
 <div class="rig">
-  <div class="top"><div><div class="brand">TWIS LOOP DECK · PRO RIG</div><div class="title">HYBRID LIVE DESK</div><div class="sub">4 decks · stems · scenes · synths · vocals · FX</div></div><div class="meter" id="clock">STOPPED</div></div>
-  <div class="transport">
-    <button id="play">▶ PLAY</button>
-    <select id="bpm"><option>118</option><option>120</option><option selected>124</option><option>126</option><option>128</option></select>
-    <select id="key"><option>C</option><option>C#</option><option selected>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
-    <select id="scale"><option selected>MINOR</option><option>DORIAN</option><option>PHRYGIAN</option></select>
-  </div>
-
-  <div class="decks">
-    <div class="deck"><h3>DECK A · GROOVE</h3><div class="deckrow"><button data-deck="A" data-act="loop">LOOP 8</button><button data-deck="A" data-act="filter">FILTER</button></div></div>
-    <div class="deck"><h3>DECK B · MELODY</h3><div class="deckrow"><button data-deck="B" data-act="loop">LOOP 16</button><button data-deck="B" data-act="filter">FILTER</button></div></div>
-    <div class="deck"><h3>DECK C · VOCAL</h3><div class="deckrow"><button data-deck="C" data-act="loop">LOOP 8</button><button data-deck="C" data-act="filter">FILTER</button></div></div>
-    <div class="deck"><h3>DECK D · ATMOS</h3><div class="deckrow"><button data-deck="D" data-act="loop">LOOP 16</button><button data-deck="D" data-act="filter">FILTER</button></div></div>
-  </div>
-
-  <div class="stems" id="stems"></div>
-
-  <div class="sceneRow">
-    <button class="scene on" data-scene="0">A · DEEP</button>
-    <button class="scene" data-scene="1">B · DRIVE</button>
-    <button class="scene" data-scene="2">C · BREAK</button>
-    <button class="scene" data-scene="3">D · PEAK</button>
-    <button id="mutate">FUCK IT</button>
-  </div>
-
-  <div class="macros">
-    <div class="macro"><span>ENERGY</span><input id="energy" type="range" min="0" max="1" step=".01" value=".45"><b id="energyV">45</b></div>
-    <div class="macro"><span>SPACE</span><input id="space" type="range" min="0" max="1" step=".01" value=".55"><b id="spaceV">55</b></div>
-    <div class="macro"><span>DELAY</span><input id="delay" type="range" min="0" max="1" step=".01" value=".28"><b id="delayV">28</b></div>
-    <div class="macro"><span>FILTER</span><input id="filter" type="range" min="0" max="1" step=".01" value=".82"><b id="filterV">82</b></div>
-  </div>
-
-  <div class="mixer" id="mixer"></div>
-  <div class="status" id="status">Tap PLAY. Then bring stems in and out like a live set.</div>
-  <div class="credits">Prototype mechanisms: Tone.js (MIT), Modal-16 musical sequencing concepts (MIT), CC0 drum samples from free-drum-samples, CC0 voice sample from pdx-cs-sound. Professional workflow inspiration: CDJ/DJM multi-deck mixing + Ableton-style stems/scenes + live synth/sample control. No proprietary artist presets or copyrighted tracks are included.</div>
+  <div class="top"><div><div class="brand">TWIS LOOP DECK · PRO RIG</div><div class="title">RUSTY PHASEWIRE</div><div class="sub">Four independent local audio decks + live mic + female answer sampler + internal Rustwire bed. Performance grammar: cue → tease → loop → cut → fade → bass swap → mic → female answer → filter → drop → reload deck → echo throw → silence → return.</div></div><div class="meter" id="clock">STOPPED</div></div>
+  <div class="performance-law"><b>LIVE LAW:</b> one deck anchors, one arrives, one loops/textures, one stays wild. Load or reload any deck while the others keep running. No cloud audio upload.</div>
+  <div class="transport"><button id="play">▶ START ENGINE</button><select id="bpm"><option>118</option><option>120</option><option selected>124</option><option>126</option><option>128</option></select><select id="key"><option>C</option><option>C#</option><option selected>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select><select id="scale"><option selected>MINOR</option><option>DORIAN</option><option>PHRYGIAN</option></select></div>
+  <div class="actionbar"><button id="micToggle">MIC</button><button id="micEcho">MIC ECHO</button><label class="answer-load">LOAD FEMALE ANSWER<input id="answerLoad" type="file" accept="audio/*"></label><button id="answerTrigger" disabled>FEMALE ANSWER</button><button id="answerEcho">ANSWER ECHO</button><button id="silenceReturn">SILENCE</button><button id="midiEnable">ENABLE MIDI</button></div>
+  <div class="live-decks" id="liveDecks"></div>
+  <section class="engine"><h3>INTERNAL RUSTWIRE BED · SYNTH / STEM ENGINE</h3><div class="stems" id="stems"></div><div class="sceneRow"><button class="scene on" data-scene="0">DEEP</button><button class="scene" data-scene="1">DRIVE</button><button class="scene" data-scene="2">BREAK</button><button class="scene" data-scene="3">PEAK</button><button id="mutate">FUCK IT</button></div><div class="macros"><div class="macro"><span>ENERGY</span><input id="energy" type="range" min="0" max="1" step=".01" value=".45"><b id="energyV">45</b></div><div class="macro"><span>SPACE</span><input id="space" type="range" min="0" max="1" step=".01" value=".55"><b id="spaceV">55</b></div><div class="macro"><span>DELAY</span><input id="delay" type="range" min="0" max="1" step=".01" value=".28"><b id="delayV">28</b></div><div class="macro"><span>FILTER</span><input id="filter" type="range" min="0" max="1" step=".01" value=".82"><b id="filterV">82</b></div></div><div class="mixer" id="mixer"></div></section>
+  <div class="status" id="status">Load audio into Deck A–D, then START ENGINE. Deck audio stays local in the browser.</div>
+  <div class="credits">Core mechanism: existing Tone.js/Web Audio Workshop stack. Four-deck architecture was independently implemented after a rights-gated salvage pass; no unlicensed third-party DJ source code is copied. PFL/headphone routing remains browser/device dependent and is not claimed here.</div>
 </div>
-<script src="assets/twis-pro-rig.js?v=2"></script>
+<script src="assets/twis-pro-rig.js?v=3"></script>
 </body></html>
