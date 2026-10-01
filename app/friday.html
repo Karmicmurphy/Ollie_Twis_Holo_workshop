@@ -63,7 +63,7 @@ $('#distill').onclick=()=>{const t=signal.value.trim();if(!t)return;renderCard(t
 $('#clear').onclick=()=>{signal.value='';decision.hidden=true};
 $('#save').onclick=()=>{const t=signal.value.trim();if(!t)return;const a=load();a.unshift({at:new Date().toISOString(),text:t,verdict:$('#verdict').textContent});localStorage.setItem(store,JSON.stringify(a.slice(0,8)));renderHistory()};
 function renderHistory(){const a=load();$('#history').innerHTML=a.length?a.map(x=>`<div style="padding:8px 0;border-bottom:1px solid #1d2b39"><b>${new Date(x.at).toLocaleString()}</b><br>${esc(x.text.slice(0,180))}<br><span class="eyebrow">${esc(x.verdict)}</span></div>`).join(''):'Nothing saved on this phone yet.'}
-const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 $('#speak').onclick=()=>{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(`The truth. ${$('#truth').textContent}. The trap. ${$('#trap').textContent}. The step. ${$('#step').textContent}. Verdict. ${$('#verdict').textContent}`);const vs=speechSynthesis.getVoices();u.voice=vs.find(v=>/female|samantha|victoria|zira|google us english/i.test(v.name))||vs[0]||null;u.rate=.96;speechSynthesis.speak(u)};
 let rec=null;const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(SR){rec=new SR();rec.continuous=false;rec.interimResults=false;rec.onresult=e=>{signal.value+=(signal.value?' ':'')+e.results[0][0].transcript};rec.onend=()=>$('#listen').textContent='🎙 Talk';$('#listen').onclick=()=>{rec.start();$('#listen').textContent='Listening…'}}else $('#listen').onclick=()=>alert('Voice input is not available in this browser. Typing still works.');
 let current=null,timer=null,busy=false;
@@ -79,5 +79,6 @@ try{const x=JSON.parse(localStorage.getItem(jobStore)||'null');if(x)remember(x)}
 renderHistory();
 })();
 </script>
+<script src="assets/friday-learning.js"></script>
 </body>
 </html>
