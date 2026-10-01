@@ -23,6 +23,9 @@ __pycache__/
 node_modules/
 dist/
 .wrangler/
+.pages-build/
+.venv/
+.playwright-cli/
 
 # Secrets and machine junk
 .env

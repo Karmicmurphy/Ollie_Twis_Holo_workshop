@@ -17,6 +17,9 @@ function renderProjects(){$("#projectSelect").innerHTML=state.projects.map(p=>`<
 $("#projectSelect").onchange=async()=>{state.activeProject=$("#projectSelect").value;save();await loadArtifacts();renderAll()}
 $("#newProject").onclick=async()=>{const title=prompt("Project name:");if(!title)return;await createProject(title,prompt("Description (optional):")||"");renderProjects();await loadArtifacts();openRoom("home")}
 async function enterOpenDoor(text){
+  if (!companion && document.querySelector('#foundationBoundedMode')?.checked) {
+    return window.foundationPhone.submit();
+  }
   const raw=String(text||"").trim();
   if(!raw)return;
   const status=$("#openDoorStatus");

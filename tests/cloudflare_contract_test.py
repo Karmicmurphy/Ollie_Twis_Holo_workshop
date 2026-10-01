@@ -5,7 +5,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_cloudflare_worker_scaffold_exists():
-    assert (ROOT / "wrangler.jsonc").exists()
     assert (ROOT / "wrangler.worker.jsonc").exists()
     assert (ROOT / "package.json").exists()
     assert (ROOT / "cloudflare" / "worker" / "src" / "index.js").exists()
@@ -21,11 +20,8 @@ def test_worker_config_points_to_app_assets_and_worker():
     assert '"TWIS_ALLOW_REMOTE_WRITE": "false"' in raw
 
 
-def test_pages_config_stays_non_authoritative():
-    raw = (ROOT / "wrangler.jsonc").read_text(encoding="utf-8")
-    assert '"pages_build_output_dir": "./dist"' in raw
-    assert '"TWIS_ALLOW_AI": "false"' in raw
-    assert '"TWIS_ALLOW_REMOTE_WRITE": "false"' in raw
+def test_pages_config_uses_dashboard_authority():
+    assert not (ROOT / "wrangler.jsonc").exists()
 
 
 def test_package_has_cloudflare_scripts():
