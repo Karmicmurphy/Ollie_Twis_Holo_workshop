@@ -67,3 +67,32 @@ def compile_human_signal_job(
     if (result.get("job") or {}).get("job_id") != job_id:
         raise RuntimeError("Foundry compile-job response contains split job identity")
     return {**result, "job_id": job_id}
+
+
+MAINTENANCE_REQUEST = "Repair only the isolated AIOS path-containment test fixture."
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        raise RuntimeError("authenticated Foundry redirects are forbidden")
+
+
+def maintenance_request(payload, authorization=None, *, retrieve_only=False):
+    """Forward to existing loopback Foundry; never infer identity from localhost."""
+    if set(payload) != {'request_id', 'instruction'}:
+        raise ValueError('maintenance accepts only request identity and instruction')
+    base = validate_foundry_url(foundry_base_url())
+    headers = {'Content-Type':'application/json', 'Accept':'application/json'}
+    if authorization:
+        headers['Authorization'] = authorization
+    req = urllib.request.Request(base+'/v1/maintenance/'+('result' if retrieve_only else 'submit'),
+                                 data=json.dumps(payload).encode(), headers=headers, method='POST')
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(req, timeout=200) as response:
+            result = json.loads(response.read(2*1024*1024))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (400,403,503):
+            return json.loads(exc.read(65536))
+        raise RuntimeError('maintenance response unavailable') from exc
+    if not isinstance(result, dict) or not isinstance(result.get('job_id'), str):
+        raise RuntimeError('maintenance response lost job identity')
+    return result

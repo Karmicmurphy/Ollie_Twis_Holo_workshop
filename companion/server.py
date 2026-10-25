@@ -435,6 +435,8 @@ def save_artifact_row(
     return {**rev, "createdAt": created_at}
 
 
+from foundry_bridge import maintenance_request, MAINTENANCE_REQUEST
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "TwisHoloCompanion/1.5"
 
@@ -579,9 +581,17 @@ class Handler(SimpleHTTPRequestHandler):
                     })
                     con.commit(); con.close()
                 json_response(self, 200, {"ok": True, "manifestPath": manifest_path, "inventory": result}); return
+            if u.path == "/api/foundry/maintenance-result":
+                x = body_json(self)
+                result = maintenance_request(x, self.headers.get('Authorization'), retrieve_only=True)
+                json_response(self, 200, {"ok":'job_id' in result, "foundry":result}); return
             if u.path == "/api/foundry/human-signal":
                 x = body_json(self)
                 raw_text = x.get("rawText", "")
+                if raw_text == MAINTENANCE_REQUEST:
+                    result = maintenance_request({'instruction':raw_text, 'request_id':x.get('requestId')},
+                                                 self.headers.get('Authorization'))
+                    json_response(self, 200, {"ok":'job_id' in result, "foundry":result}); return
                 pid_raw = x.get("projectId")
                 pid = safe_id(pid_raw) if pid_raw else None
                 result = foundry_compile_human_signal_job(

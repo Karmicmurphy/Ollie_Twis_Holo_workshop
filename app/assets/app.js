@@ -24,16 +24,17 @@ async function enterOpenDoor(text){
   let foundry=null;
   if(companion){
     try{
-      const response=await api("/api/foundry/human-signal",{method:"POST",body:JSON.stringify({rawText:raw,projectId:state.activeProject})});
+      const response=await api("/api/foundry/human-signal",{method:"POST",body:JSON.stringify({rawText:raw,projectId:state.activeProject,requestId:state.arrival?.rawText===raw&&state.arrival?.requestId?state.arrival.requestId:(state.arrival.requestId=id())})});
       foundry=response?.foundry||null;
     }catch(_err){
       foundry=null;
     }
   }
   state.arrival={
+    requestId:state.arrival.requestId,
     signalId:foundry?.signal?.signal_id||"",
     jobId:foundry?.job_id||foundry?.job?.job_id||"",
-    status:foundry?.execution_reconciliation?.status||foundry?.job?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
+    status:foundry?.status||foundry?.execution_reconciliation?.status||foundry?.job?.status||(companion?"LOCAL_ROUTING_UNAVAILABLE":"BROWSER_ONLY"),
     rawText:raw,
     at:new Date().toISOString()
   };
@@ -44,7 +45,13 @@ async function enterOpenDoor(text){
     arrivalJobId:state.arrival.jobId||undefined
   });
   save();
-  if(state.arrival.status==="COMPILED_NOT_EXECUTABLE"){
+  if(["OWNER_INTAKE_NOT_CONFIGURED","OWNER_AUTHORIZATION_REQUIRED"].includes(state.arrival.status)){
+    status.textContent=foundry.error||"Owner authentication is required before maintenance can run.";
+  }else if(state.arrival.status==="CERTIFIED_AWAITING_HUMAN_REVIEW"){
+    status.textContent=`Verified candidate ${state.arrival.jobId}. Evidence retained; no live change was applied.`;
+  }else if(["IN_PROGRESS","FAILED_REQUIRES_REVIEW","STALE_AUTHORITY"].includes(state.arrival.status)){
+    status.textContent=`${state.arrival.status}: ${state.arrival.jobId}. No automatic re-execution.`;
+  }else if(state.arrival.status==="COMPILED_NOT_EXECUTABLE"){
     status.textContent=`Compiled ${state.arrival.jobId}, but no proven executable implementation is wired for that capability yet.`;
   }else if(state.arrival.jobId){
     status.textContent=`Compiled ${state.arrival.jobId}. The machine owns the routing from here.`;
