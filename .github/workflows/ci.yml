@@ -36,4 +36,6 @@ jobs:
       - name: Cloudflare Worker contract
         run: node tests/cloudflare_worker_contract_test.mjs
       - name: Build static Pages output
-        run: npm install && npm run build
+        run: npm ci --ignore-scripts && npm run test:phone && npm run build
+      - name: Compile Pages functions
+        run: npx wrangler pages functions build functions --outdir .pages-build

@@ -64,6 +64,9 @@ async function enterHostedFirstJob(){
 }
 
 async function enterOpenDoor(text){
+  if (!companion && document.querySelector('#foundationBoundedMode')?.checked) {
+    return window.foundationPhone.submit();
+  }
   const raw=String(text||"").trim();
   if(!raw)return;
   if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&raw===hostedInstruction){

@@ -5,6 +5,7 @@
   "description": "Local-first Twis Holo Workshop with optional Cloudflare remote hull.",
   "type": "module",
   "scripts": {
+    "test:phone": "node --test tests/foundation-phone.test.mjs",
     "build": "node cloudflare/pages/build.mjs",
     "pages:dev": "wrangler pages dev dist",
     "pages:deploy": "wrangler pages deploy dist --project-name ollie-twis-holo-workshop",

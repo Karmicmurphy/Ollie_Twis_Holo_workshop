@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071019">
+<title>FRIDAY // Owner Node</title>
+<style>
+:root{color-scheme:dark;--bg:#071019;--panel:#0d1823e8;--line:#26384a;--text:#edf4fa;--muted:#8da0b3;--hot:#d7b86a;--good:#7fe0ad;--bad:#ff8d8d;--blue:#8cc8ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#17314a 0,#071019 38%,#03080d 100%);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}.wrap{max-width:760px;margin:auto;padding:env(safe-area-inset-top) 14px calc(28px + env(safe-area-inset-bottom))}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:18px 2px}.eyebrow{color:var(--hot);letter-spacing:.18em;font-size:.72rem;font-weight:800}.top h1{margin:.1rem 0;font-size:1.45rem}.pill{border:1px solid var(--line);border-radius:999px;padding:8px 11px;color:var(--muted);font-size:.78rem;background:#08121b}.panel{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(16px);border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 18px 48px #0006}.hero{padding:20px}.hero h2{font-size:1.65rem;margin:.2rem 0 .45rem}.hero p{color:var(--muted);margin:.35rem 0 1rem}textarea{width:100%;min-height:132px;border-radius:16px;border:1px solid var(--line);background:#050b11;color:var(--text);padding:14px;font:inherit;resize:vertical}button,a.btn{appearance:none;border:1px solid var(--line);border-radius:14px;background:#101d29;color:var(--text);padding:12px 14px;font-weight:750;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:46px}button.primary{background:var(--hot);color:#111;border-color:var(--hot)}button.good{border-color:#3d8060;color:var(--good)}button:disabled{opacity:.45}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1 1 145px}.truth{display:grid;gap:8px}.truth div{padding:12px;border-radius:14px;background:#08121b;border:1px solid #1d2b39}.truth b{display:block;color:var(--hot);font-size:.72rem;letter-spacing:.12em;margin-bottom:3px}.statusline{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}.statusline span{font-size:.67rem;text-align:center;border:1px solid var(--line);padding:8px 4px;border-radius:10px;color:var(--muted)}.statusline .on{color:var(--good);border-color:#315b49}.job{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.78rem;overflow-wrap:anywhere;color:var(--blue)}.muted{color:var(--muted)}.result{padding:12px;border-radius:14px;border:1px solid var(--line);background:#050b11;min-height:50px}.result.good{border-color:#315b49;color:var(--good)}.result.bad{border-color:#6d3737;color:var(--bad)}details{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}summary{cursor:pointer;color:var(--muted)}.footer{text-align:center;color:#607487;font-size:.74rem;padding:12px}.pulse{width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 18px var(--good);display:inline-block;margin-right:7px}@media(max-width:440px){.statusline{grid-template-columns:repeat(2,1fr)}.hero h2{font-size:1.45rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><div><div class="eyebrow">OLLIE TWIS // OWNER NODE</div><h1>FRIDAY</h1></div><div class="pill"><span class="pulse"></span>LOCAL FIRST</div></header>
+
+<section class="panel hero">
+<div class="eyebrow">THE OPEN DOOR</div>
+<h2>What's going on?</h2>
+<p>Use your words. Bad words count. This page keeps the raw text on this device and turns it into one useful next move.</p>
+<textarea id="signal" placeholder="Tell Friday what the hell is going on…"></textarea>
+<div class="row" style="margin-top:10px"><button id="listen">🎙 Talk</button><button id="distill" class="primary">Make it simple</button><button id="clear">Clear</button></div>
+</section>
+
+<section class="panel" id="decision" hidden>
+<div class="eyebrow">ONE CARD</div>
+<div class="truth">
+<div><b>THE TRUTH</b><span id="truth"></span></div>
+<div><b>THE TRAP</b><span id="trap"></span></div>
+<div><b>THE STEP</b><span id="step"></span></div>
+<div><b>THE VERDICT</b><span id="verdict"></span></div>
+</div>
+<div class="row" style="margin-top:10px"><button id="speak">🔊 Read it to me</button><button id="save">Save on this phone</button></div>
+</section>
+
+<section class="panel">
+<div class="eyebrow">FOUNDATION // BOUNDED PATH</div>
+<h2 style="margin:.25rem 0">One button. One job ID. One proof.</h2>
+<div class="statusline"><span class="on">PHONE</span><span class="on">WORKSHOP</span><span id="foundationLight">FOUNDATION</span><span id="proofLight">PROOF</span></div>
+<p class="muted">This runs only the approved <code>aios-path-containment</code> fixture. Your Open Door text is never sent with it.</p>
+<div class="row"><button id="run" class="primary">Run Foundation check</button><button id="recover">Recover last job</button></div>
+<p class="job" id="job"></p><div id="result" class="result">No job running.</div>
+<div class="row" style="margin-top:10px"><button id="refresh" hidden>Check now</button><a id="proof" class="btn good" hidden target="_blank" rel="noopener noreferrer">Open proof</a></div>
+<details><summary>What Friday is watching</summary><p class="muted">Same job identity across dispatch and return. No automatic activation. Human review stays required. A code change or green CI is not called live proof.</p></details>
+</section>
+
+<section class="panel">
+<div class="eyebrow">RECOVER, DON'T RESTART</div>
+<div id="history" class="muted">Nothing saved on this phone yet.</div>
+</section>
+
+<div class="footer">Mine is mine. Theirs is theirs. Engage creation.<br>FRIDAY does not auto-publish, auto-activate, spend money, or send your Open Door text away.</div>
+</div>
+<script>
+(()=>{
+const $=s=>document.querySelector(s), signal=$('#signal'),decision=$('#decision');
+const store='twis-friday-v1', jobStore='twis-friday-foundation-job';
+const load=()=>{try{return JSON.parse(localStorage.getItem(store)||'[]')}catch{return[]}};
+function route(t){const s=t.toLowerCase();let kind='general';if(/cloudflare|deploy|pages|phone_jobs|runtime|binding/.test(s))kind='deploy';else if(/github|action|workflow|ci|test|run failed/.test(s))kind='ci';else if(/repo|branch|commit|sha|code|bug|build/.test(s))kind='code';else if(/idea|project|should i|which one|too many|overwhelm|lost/.test(s))kind='decision';
+const cards={deploy:['The problem is at the live deployment/provider boundary until runtime evidence says otherwise.','Changing more source code before proving the serving deployment can create another sideways failure.','Verify the exact live Preview deployment and runtime bindings, then change only the failing layer.','PROVIDER TRUTH FIRST.'],ci:['A red notification is not a diagnosis. The failing job or zero-job validation state is the evidence.','Treating every red run as the same failure burns time and hides the real layer.','Open the exact run, identify the first failing gate, repair only that gate, rerun it.','FAILURE LAYER FIRST.'],code:['The repo is only one layer of the machine. A patch is not a working product until the user path proves it.','A cleaner rewrite can destroy known-good behavior and restart solved work.','Recover authority, salvage existing mechanisms, make the smallest coherent change, then prove the actual path.','RECOVER BEFORE REBUILD.'],decision:['You do not need another pile of options. You need the choice that reduces owner work and preserves what already works.','New infrastructure can feel like progress while increasing the number of things you have to babysit.','Keep one front door, one truth path, one next gate. Delete or park anything that does not move that gate.','ONE MACHINE. ONE NEXT MOVE.'],general:['Your raw signal is allowed to be messy. The machine should translate it into a bounded next action without making you rewrite yourself.','The trap is turning your frustration into another architecture project instead of solving the next real decision.','Name the result you need next; recover existing machinery; execute the smallest provable move.','DON’T ANSWER THE WORDS. SOLVE THE JOB.']};return cards[kind]}
+function renderCard(text){const c=route(text);['truth','trap','step','verdict'].forEach((id,i)=>$('#'+id).textContent=c[i]);decision.hidden=false;decision.scrollIntoView({behavior:'smooth',block:'nearest'})}
+$('#distill').onclick=()=>{const t=signal.value.trim();if(!t)return;renderCard(t)};
+$('#clear').onclick=()=>{signal.value='';decision.hidden=true};
+$('#save').onclick=()=>{const t=signal.value.trim();if(!t)return;const a=load();a.unshift({at:new Date().toISOString(),text:t,verdict:$('#verdict').textContent});localStorage.setItem(store,JSON.stringify(a.slice(0,8)));renderHistory()};
+function renderHistory(){const a=load();$('#history').innerHTML=a.length?a.map(x=>`<div style="padding:8px 0;border-bottom:1px solid #1d2b39"><b>${new Date(x.at).toLocaleString()}</b><br>${esc(x.text.slice(0,180))}<br><span class="eyebrow">${esc(x.verdict)}</span></div>`).join(''):'Nothing saved on this phone yet.'}
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+$('#speak').onclick=()=>{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(`The truth. ${$('#truth').textContent}. The trap. ${$('#trap').textContent}. The step. ${$('#step').textContent}. Verdict. ${$('#verdict').textContent}`);const vs=speechSynthesis.getVoices();u.voice=vs.find(v=>/female|samantha|victoria|zira|google us english/i.test(v.name))||vs[0]||null;u.rate=.96;speechSynthesis.speak(u)};
+let rec=null;const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(SR){rec=new SR();rec.continuous=false;rec.interimResults=false;rec.onresult=e=>{signal.value+=(signal.value?' ':'')+e.results[0][0].transcript};rec.onend=()=>$('#listen').textContent='🎙 Talk';$('#listen').onclick=()=>{rec.start();$('#listen').textContent='Listening…'}}else $('#listen').onclick=()=>alert('Voice input is not available in this browser. Typing still works.');
+let current=null,timer=null,busy=false;
+function remember(v){current={...current,...v};localStorage.setItem(jobStore,JSON.stringify(current));$('#job').textContent=current.job_id?`${current.job_id}${current.attempt?' • attempt '+current.attempt:''}`:'';$('#refresh').hidden=!current?.run_id}
+async function api(options={}){const q=options.method?'':`?job_id=${encodeURIComponent(current.job_id)}&run_id=${encodeURIComponent(current.run_id)}`;const r=await fetch('/api/foundation/jobs'+q,{...options,headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',redirect:'error',signal:AbortSignal.timeout(25000)});if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Workshop sign-in or current Preview route is required.');const x=await r.json();if(!r.ok)throw Error(`${x.status}: ${x.error}`);return x}
+function show(x){remember(x);const el=$('#result');el.textContent=x.status+(x.reason?': '+x.reason:'');el.className='result '+(x.status==='PASSED'?'good':x.status==='FAILED'?'bad':'');$('#foundationLight').className=x.status==='BLOCKED'?'':'on';$('#proofLight').className=x.status==='PASSED'?'on':'';$('#proof').hidden=!x.proof_url;if(x.proof_url)$('#proof').href=x.proof_url;if(['QUEUED','IN_PROGRESS','SUBMITTED','PENDING'].includes(x.status))poll()}
+function poll(){clearTimeout(timer);timer=setTimeout(async()=>{try{show(await api())}catch(e){fail(e)}},5000)}
+function fail(e){const el=$('#result');el.textContent='Not confirmed: '+e.message;el.className='result bad'}
+$('#run').onclick=async()=>{if(busy)return;busy=true;$('#run').disabled=true;try{if(!current)remember({job_id:'job:phone-'+crypto.randomUUID().replaceAll('-','')});if(current.run_id){show(await api());return}$('#result').textContent='SUBMITTED: requesting the approved bounded check…';show(await api({method:'POST',body:JSON.stringify({action:'dispatch',fixture:'aios-path-containment',job_id:current.job_id})}))}catch(e){fail(e)}finally{busy=false;$('#run').disabled=false}};
+$('#recover').onclick=()=>{try{const x=JSON.parse(localStorage.getItem(jobStore)||'null');if(!x)return fail(Error('No saved Foundation job on this phone.'));remember(x);$('#result').textContent='Recovered saved job identity. Press Check now.'}catch(e){fail(e)}};
+$('#refresh').onclick=async()=>{try{show(await api())}catch(e){fail(e)}};
+try{const x=JSON.parse(localStorage.getItem(jobStore)||'null');if(x)remember(x)}catch{}
+renderHistory();
+})();
+</script>
+<script src="assets/friday-learning.js"></script>
+</body>
+</html>
