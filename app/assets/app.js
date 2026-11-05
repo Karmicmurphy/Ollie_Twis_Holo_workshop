@@ -16,9 +16,60 @@ function active(){return state.projects.find(p=>p.id===state.activeProject)||sta
 function renderProjects(){$("#projectSelect").innerHTML=state.projects.map(p=>`<option value="${p.id}" ${p.id===state.activeProject?"selected":""}>${esc(p.title)}</option>`).join("")}
 $("#projectSelect").onchange=async()=>{state.activeProject=$("#projectSelect").value;save();await loadArtifacts();renderAll()}
 $("#newProject").onclick=async()=>{const title=prompt("Project name:");if(!title)return;await createProject(title,prompt("Description (optional):")||"");renderProjects();await loadArtifacts();openRoom("home")}
+const hostedInstruction="Repair only the isolated AIOS path-containment test fixture.";
+let hostedBusy=false;
+let hostedEvidence;
+
+async function enterHostedFirstJob(){
+  if(hostedBusy)return;
+  hostedBusy=true;
+  const route="/api/foundation/hosted-first-job", requestId="request-first-001";
+  const status=$("#openDoorStatus");
+  const previous=state.chat.find(m=>m.role==="user"&&m.hostedRequestId===requestId);
+  status.textContent="Checking the original FRIDAY job...";
+  try{
+    if(!previous){
+      state.chat.push({role:"user",content:hostedInstruction,hostedRequestId:requestId});
+      save();
+    }
+    const response=await fetch(route,previous?{cache:"no-store"}:{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({request_id:requestId,instruction:hostedInstruction})
+    });
+    const result=await response.json();
+    if(result.request_id!==requestId)throw Error("Request mismatch");
+    const labels={PENDING:"Queued",RUNNING:"Running",FAILED:"Failed",BLOCKED:"Blocked",
+      NOT_SUBMITTED:"No original run found",DISPATCH_UNCERTAIN:"Submission unconfirmed"};
+    hostedEvidence=undefined;
+    if(response.ok&&result.status==="COMPLETE"&&typeof result.output==="string"&&result.receipt){
+      hostedEvidence=result;
+      status.textContent=`Verified output: capabilities.py. Job: ${result.job_id}. Certificate: ${result.certificate_id}.`;
+    }else{
+      status.textContent=(labels[result.status]||"Blocked")+
+        (typeof result.error==="string"?": "+result.error:"")+
+        ". Submit the same instruction to check the original request, not rerun it.";
+    }
+  }catch{
+    hostedEvidence=undefined;
+    status.textContent="Result unavailable. Checking again retrieves the original request; it does not resubmit.";
+  }finally{
+    const old=state.chat.find(m=>m.role==="assistant"&&m.hostedRequestId===requestId);
+    const message={role:"assistant",content:status.textContent,hostedRequestId:requestId};
+    if(old)Object.assign(old,message);else state.chat.push(message);
+    hostedBusy=false;
+    $("#openDoorInput").value="";
+    renderChat();
+    openRoom("talk");
+  }
+}
+
 async function enterOpenDoor(text){
   const raw=String(text||"").trim();
   if(!raw)return;
+  if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&raw===hostedInstruction){
+    await enterHostedFirstJob();
+    return;
+  }
   const status=$("#openDoorStatus");
   status.textContent="I’ve got what you said. Finding the right path without making you pick a category…";
   let foundry=null;
@@ -66,7 +117,18 @@ function renderWork(){const q=$("#workSearch").value.toLowerCase(),k=$("#workKin
 $("#workSearch").oninput=renderWork;$("#workKind").onchange=renderWork;const closeHistory=$("#closeHistory");if(closeHistory)closeHistory.onclick=()=>{$("#historyPanel").hidden=true}
 function openItem(idv){const i=state.items.find(x=>x.id===idv);if(!i)return;if(i.type==="document"){state.draft.title=i.title;state.draft.body=i.data.body||"";state.draft.versions=i.data.versions||[];syncDraft();openRoom("write")}else if(i.type==="conversation"){state.chat=i.data.messages||[];renderChat();openRoom("talk")}else if(i.type==="music"){state.music=i.data.music||state.music;state.draft.songNotes=i.data.notes||"";syncMusic();openRoom("music")}else if(i.type==="video"){state.draft.videoNotes=i.data.notes||"";$("#videoNotes").value=state.draft.videoNotes;openRoom("video")}else if(i.type==="research"){Object.assign(state.draft,{mission:i.data.mission||"",findings:i.data.findings||"",sources:i.data.sources||""});syncResearch();openRoom("research")}else if(i.type==="image"&&i.data.png){const img=new Image();img.onload=()=>{const c=$("#imageCanvas"),x=c.getContext("2d");c.width=img.width;c.height=img.height;x.drawImage(img,0,0);imageOriginal=i.data.png;openRoom("image")};img.src=i.data.png}}
 const prompts=["What's a memory you return to even when you are not trying to?","What room from your past can you still see clearly?","What sound puts you back in another time?","Who do you still speak to in your head?","What ordinary object carries more history than anyone would guess?"];
-function renderChat(){if(!state.chat.length)state.chat=[{role:"assistant",content:`Hey ${state.settings.userName}. How's it going today?`}];$("#messages").innerHTML=state.chat.map(m=>`<div class="message ${m.role}">${esc(m.content)}</div>`).join("");$("#messages").scrollTop=$("#messages").scrollHeight;save()}
+function renderChat(){
+  if(!state.chat.length)state.chat=[{role:"assistant",content:`Hey ${state.settings.userName}. How's it going today?`}];
+  const messages=$("#messages");
+  messages.innerHTML=state.chat.map(m=>`<div class="message ${m.role}">${esc(m.content)}${m.role==="assistant"&&m.hostedRequestId&&hostedEvidence?` <button type="button" data-hosted-proof>Download output and receipt</button>`:""}</div>`).join("");
+  const button=messages.querySelector("[data-hosted-proof]");
+  if(button)button.onclick=()=>{
+    const url=URL.createObjectURL(new Blob([JSON.stringify(hostedEvidence,null,2)],{type:"application/json"}));
+    const link=document.createElement("a");link.href=url;link.download="friday-request-first-001.json";link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  messages.scrollTop=messages.scrollHeight;save();
+}
 $("#memoryPrompt").onclick=()=>{$("#chatInput").value=prompts[Math.floor(Math.random()*prompts.length)]};$("#chatForm").onsubmit=async e=>{e.preventDefault();const text=$("#chatInput").value.trim();if(!text)return;state.chat.push({role:"user",content:text});$("#chatInput").value="";renderChat();const reply=await aiReply(text);state.chat.push({role:"assistant",content:reply});renderChat();if(state.settings.speakReplies)speak(reply)}
 async function aiReply(text){const s=state.settings;if(s.endpoint&&s.model){try{const context=state.items.slice(0,8).map(i=>`${i.type}: ${i.title}`).join("\n");const messages=[{role:"system",content:`You are ${s.companionName}, Randy's natural creative companion inside Twis Holo Workshop. Active project: ${active()?.title}. Recent artifacts:\n${context}\nHelp with conversation, writing, music, video, images, research, and building. Preserve constraints. Do not force project-management language.`},...state.chat.slice(-20)];if(companion){const d=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({endpoint:s.endpoint,model:s.model,apiKey:s.apiKey,messages})});return d.text||"No text returned."}const h={"Content-Type":"application/json"};if(s.apiKey)h.Authorization=`Bearer ${s.apiKey}`;const r=await fetch(s.endpoint,{method:"POST",headers:h,body:JSON.stringify({model:s.model,messages,temperature:.8})});const d=await r.json();return d.choices?.[0]?.message?.content||d.response||"No text returned."}catch(e){$("#aiStatus").textContent="AI connection failed: "+e.message}}const l=text.toLowerCase();if(/story|write|scene/.test(l))return "Tell me the image, line, or moment you can already see. We can build the story from there.";if(/music|beat|song/.test(l))return "Open Music and begin with the rhythm or the words—whichever is already alive.";if(/memory|remember/.test(l))return prompts[Math.floor(Math.random()*prompts.length)];return "I'm here. Keep going—what part of that matters most right now?"}
 $("#saveChat").onclick=()=>addItem("conversation",`Conversation ${new Date().toLocaleDateString()}`,{messages:clone(state.chat)});$("#chatToStory").onclick=()=>{state.draft.title="Conversation Story Draft";state.draft.body=state.chat.map(m=>`${m.role==="user"?state.settings.userName:state.settings.companionName}: ${m.content}`).join("\n\n");state.draft.versions=[];syncDraft();openRoom("write")};$("#closeSession").onclick=async()=>{const summary=prompt("What should the Workshop remember about this session?")||"";const nextAction=prompt("What is the next action?")||"";if(companion)await api(`/api/projects/${state.activeProject}/sessions`,{method:"POST",body:JSON.stringify({room,nextAction,summary,activeConstraints:[]})});toast("Session closed")}

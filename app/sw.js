@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v15-simple-perform";
+const CACHE_NAME = "twis-holo-workshop-v16-private-proof";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -36,12 +36,13 @@ self.addEventListener("activate", event => {
 });
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/foundation/")) return;
   const isNavigation = event.request.mode === "navigate" || event.request.destination === "document";
   if (isNavigation) {
     event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./loop-deck.html")||caches.match("./index.html"))));
     return;
   }
-  const url = new URL(event.request.url);
   const freshAsset = url.origin === self.location.origin && ["script","style","worker"].includes(event.request.destination);
   if (freshAsset) {
     event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./index.html"))));
