@@ -157,5 +157,7 @@ test('both Workshop service workers leave private result GETs to the network', a
     } });
     hooks.fetch({ request: { method: 'GET', mode: 'navigate', url: origin + '/api/foundation/hosted-first-job' },
       respondWith: () => assert.fail('private proof must not enter the service worker cache') });
+    hooks.fetch({ request: { method: 'GET', mode: 'navigate', url: origin + '/api/projects/example/foundation/context' },
+      respondWith: () => assert.fail('private context must not enter the service worker cache') });
   }
 });

@@ -2,46 +2,171 @@
 const KEY="twisHolo.full.v1"; const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const base={settings:{userName:"Randy",companionName:"Workshop",speakReplies:false,lowMotion:false,endpoint:"",model:"",apiKey:"",cloudflareUrl:""},projects:[],activeProject:"",items:[],chat:[],lastRoom:"home",arrival:{signalId:"",jobId:"",status:"",rawText:"",at:""},draft:{title:"Untitled",body:"",versions:[],songNotes:"",videoNotes:"",mission:"",findings:"",sources:""},music:{bpm:92,wave:"sine",root:48,tracks:{Kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],Snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],Hat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],Clap:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]},melody:[0,0,0,0,1,0,2,0,0,0,4,0,2,0,1,0]}};
 let state=load(),companion=false,room="home",audioCtx=null,timer=null,step=0,media=[],imageOriginal=null,drawMode=false,drawing=false,lastPoint=null,modules=[];
+state.hostedJobs ||= {};
 function clone(v){return JSON.parse(JSON.stringify(v))}function merge(a,b){for(const k in b){if(b[k]&&typeof b[k]==="object"&&!Array.isArray(b[k])&&a[k])merge(a[k],b[k]);else a[k]=b[k]}return a}
 function load(){try{return merge(clone(base),JSON.parse(localStorage.getItem(KEY)||"{}"))}catch{return clone(base)}}function save(){localStorage.setItem(KEY,JSON.stringify(state))}
 function id(){return crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2)}function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}function fmt(v){return new Date(v).toLocaleString()}
 async function api(path,opts={}){const r=await fetch(path,{headers:{"Content-Type":"application/json",...(opts.headers||{})},...opts});if(!r.ok)throw Error(await r.text());return r.status===204?null:r.json()}
-async function boot(){try{await api("/api/health");companion=true;$("#modeBadge").textContent="Local core + SQLite"}catch{companion=false;$("#modeBadge").textContent="Browser-only fallback"}if(companion){try{const ps=await api("/api/projects");state.projects=ps.map(p=>({id:p.id,title:p.title,description:p.description,nextAction:p.next_action,createdAt:p.created_at,updatedAt:p.updated_at}));if(!state.activeProject&&state.projects[0])state.activeProject=state.projects[0].id}catch{}}
-if(!state.projects.length){await createProject("Thousand-Year Hangover","First proving corpus and creative project")}await loadModules();renderProjects();await loadArtifacts();renderAll()}
+async function boot(){try{await api("/api/health");companion=true;$("#modeBadge").textContent="Local core + SQLite"}catch{companion=false;$("#modeBadge").textContent="Browser-only fallback"}if(companion){try{const ps=await api("/api/projects");state.projects=ps.map(p=>({id:p.id,title:p.title,description:p.description,nextAction:p.next_action,createdAt:p.created_at,updatedAt:p.updated_at}));if(!state.projects.some(p=>p.id===state.activeProject)&&state.projects[0]){state.activeProject=state.projects[0].id;save()}}catch{}}
+if(!state.projects.length){await createProject("Thousand-Year Hangover","First proving corpus and creative project")}await loadModules();renderProjects();await loadArtifacts();renderAll();restoreHostedResult()}
 async function createProject(title,description=""){const p={id:title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||id(),title,description,nextAction:"",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};state.projects.unshift(p);state.activeProject=p.id;save();if(companion)await api("/api/projects",{method:"POST",body:JSON.stringify(p)});return p}
-async function loadArtifacts(){if(!companion)return;try{const rows=await api(`/api/projects/${state.activeProject}/artifacts`);state.items=rows.map(r=>({id:r.id,type:r.kind,title:r.title,data:r.payload,path:r.path,authorityState:r.authority_state,revisionNumber:r.revision_number||0,currentRevisionId:r.current_revision_id||"",createdAt:r.created_at,updatedAt:r.updated_at}))}catch{}}
+async function loadArtifacts(){if(!companion){await loadFoundationContext();return}const project=state.activeProject;try{const rows=await api(`/api/projects/${project}/artifacts`);if(project!==state.activeProject)return;state.items=rows.filter(r=>r.kind!=="foundation-context").map(r=>({id:r.id,type:r.kind,title:r.title,data:r.payload,path:r.path,authorityState:r.authority_state,revisionNumber:r.revision_number||0,currentRevisionId:r.current_revision_id||"",createdAt:r.created_at,updatedAt:r.updated_at}))}catch{}await loadFoundationContext()}
 async function persistItem(item){if(!companion)return true;try{const d=await api(`/api/projects/${state.activeProject}/artifacts`,{method:"POST",body:JSON.stringify({id:item.id,kind:item.type,title:item.title,path:item.path||"",payload:item.data,authorityState:item.authorityState||"DRAFT",createdAt:item.createdAt,expectedRevision:item.revisionNumber||0})});item.revisionNumber=d.artifact.revisionNumber;item.currentRevisionId=d.artifact.currentRevisionId;item.updatedAt=d.artifact.updatedAt||new Date().toISOString();save();return true}catch(e){toast("Local save failed: "+e.message);return false}}
 async function addItem(type,title,data,path=""){const item={id:id(),type,title:title||"Untitled",data,path,authorityState:"DRAFT",revisionNumber:0,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};state.items.unshift(item);save();const ok=await persistItem(item);if(!ok){state.items=state.items.filter(x=>x.id!==item.id);save();renderRecent();return null}renderRecent();toast("Saved");return item}
 function active(){return state.projects.find(p=>p.id===state.activeProject)||state.projects[0]}
 function renderProjects(){$("#projectSelect").innerHTML=state.projects.map(p=>`<option value="${p.id}" ${p.id===state.activeProject?"selected":""}>${esc(p.title)}</option>`).join("")}
 $("#projectSelect").onchange=async()=>{state.activeProject=$("#projectSelect").value;save();await loadArtifacts();renderAll()}
 $("#newProject").onclick=async()=>{const title=prompt("Project name:");if(!title)return;await createProject(title,prompt("Description (optional):")||"");renderProjects();await loadArtifacts();openRoom("home")}
+let foundationContext=null,foundationBusy=false,foundationPending=null;
+function renderFoundationContext(){
+  const view=foundationContext,available=Boolean(view&&view.projectId===state.activeProject);
+  $("#contextGoal").textContent=available?(view.goal?.text||"No project goal recorded."):"Project context unavailable";
+  const pendingKind=foundationBusy&&foundationPending?.body.kind;
+  $("#contextEnabled").checked=available&&(pendingKind==="stop"?false:pendingKind==="resume"?true:view.newLocalWorkEnabled);
+  $("#contextEnabled").disabled=!available||foundationBusy||Boolean(foundationPending);
+  $("#contextKind").disabled=!available||foundationBusy||Boolean(foundationPending);
+  $("#contextText").disabled=!available||foundationBusy||Boolean(foundationPending);
+  $("#contextSave").disabled=!available||foundationBusy;
+  $("#contextSave").textContent=foundationPending?"Check pending save":"Save";
+  $("#contextReceipt").textContent=available&&view.revisionId?
+    `Context revision ${view.revision} | ${view.revisionId} | SHA-256 ${view.snapshotSha256}`:"";
+  $("#contextEvents").innerHTML=available?[...view.events].reverse().map(e=>
+    `<li><b>${esc(e.kind)}</b> <time>${esc(fmt(e.createdAt))}</time><p>${esc(e.text)}</p></li>`).join(""):"";
+  $("#contextJobs").innerHTML=available?view.jobs.map(j=>
+    `<li>${esc(j.operation)}: <b>${esc(j.status)}</b> <code>${esc(j.id)}</code></li>`).join(""):"";
+}
+async function loadFoundationContext(){
+  const project=state.activeProject;
+  foundationContext=null;
+  if(foundationPending&&foundationPending.project!==project)foundationPending=null;
+  renderFoundationContext();
+  $("#contextStatus").textContent="Loading project context...";
+  try{
+    const view=companion?await api(`/api/projects/${encodeURIComponent(project)}/foundation/context`,{cache:"no-store"}):
+      await window.FoundationContextStore.read(project);
+    if(project!==state.activeProject)return;
+    if(view.projectId!==project||!["WORKSHOP_SQLITE","BROWSER_LOCAL"].includes(view.storage)||!Array.isArray(view.events))throw Error("Context mismatch");
+    foundationContext=view;
+    $("#contextStatus").textContent=(view.newLocalWorkEnabled?"New jobs enabled":"New jobs paused")+
+      (view.storage==="BROWSER_LOCAL"?" | Private browser storage":" | Private SQLite storage");
+  }catch{
+    if(project===state.activeProject)$("#contextStatus").textContent="Project context could not be loaded";
+  }
+  if(project===state.activeProject)renderFoundationContext();
+}
+async function saveFoundationContext(kind,text){
+  if(foundationBusy||!foundationContext||foundationContext.projectId!==state.activeProject)return;
+  const project=state.activeProject;
+  if(!foundationPending){
+    const body={eventId:id(),kind,text,expectedRevision:foundationContext.revision};
+    if(kind==="correction")body.goalId=foundationContext.goal?.id||"";
+    foundationPending={project,body};
+  }
+  foundationBusy=true;renderFoundationContext();
+  $("#contextStatus").textContent="Saving context...";
+  try{
+    let view;
+    if(!companion){view=await window.FoundationContextStore.append(project,foundationPending.body)}else{
+    const response=await fetch(`/api/projects/${encodeURIComponent(project)}/foundation/context`,{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(foundationPending.body)});
+    if(response.status===409||response.status===400){
+      foundationPending=null;
+      await loadFoundationContext();
+      throw Error("Project changed or entry rejected. Review the current context before saving again.");
+    }
+    if(!response.ok)throw Error("Save unconfirmed. Check pending save before making another edit.");
+    view=await response.json();}
+    if(view.projectId!==project||!["CONTEXT_STORAGE_NOT_JOB_CERTIFICATION","PRIVATE_BROWSER_STORAGE_NOT_JOB_CERTIFICATION"].includes(view.proofScope))throw Error("Context response mismatch");
+    foundationPending=null;
+    if(project===state.activeProject){
+      foundationContext=view;$("#contextText").value="";
+      $("#contextStatus").textContent=(view.duplicate?"Original context save recovered":"Context saved")+
+        (view.storage==="BROWSER_LOCAL"?" | Private browser storage":"");
+    }
+  }catch(e){if(project===state.activeProject)$("#contextStatus").textContent=e.message}
+  finally{foundationBusy=false;renderFoundationContext()}
+}
+$("#contextForm").onsubmit=e=>{e.preventDefault();saveFoundationContext($("#contextKind").value,$("#contextText").value)};
+$("#contextEnabled").onchange=()=>saveFoundationContext($("#contextEnabled").checked?"resume":"stop",
+  $("#contextEnabled").checked?"Owner resumed new local jobs":"Owner paused new local jobs");
+
 const hostedInstruction="Repair only the isolated AIOS path-containment test fixture.";
-let hostedBusy=false;
+const recognizesHostedInstruction=text=>window.FoundationJobClient?.recognizes(text)||String(text).trim()===hostedInstruction;
+const hostedRequestId="request-commissioning-002";
+let hostedBusy=false,hostedPollRemaining=0,hostedPollTimer=null;
 let hostedEvidence;
 
-async function enterHostedFirstJob(){
+function openHostedResultItem(item){
+  if(item.projectId!==state.activeProject)return toast("Open the originating project first");
+  hostedEvidence={...item.data,cached:true};
+  state.hostedJobs[hostedRequestId] ||= {projectId:item.projectId,goalRef:item.data.delivery?.goalRef,
+    runId:item.data.run_id,uncertain:true,status:"COMPLETE"};
+  if(!state.chat.some(m=>m.role==="assistant"&&m.hostedRequestId===hostedRequestId)){
+    state.chat.push({role:"assistant",content:"Retained original output and receipt",hostedRequestId,
+      workshopProjectId:item.projectId});
+  }
+  renderChat();openRoom("talk");
+  if(location.origin==="https://ollie-twis-holo-workshop.pages.dev")enterHostedFirstJob({retrieveOnly:true});
+}
+
+function restoreHostedResult(){
+  const record=state.hostedJobs[hostedRequestId];
+  if(!record)return;
+  const retained=state.items.find(i=>i.type==="foundation-job-result"&&i.projectId===record.projectId&&i.data?.request_id===hostedRequestId);
+  if(retained)hostedEvidence={...retained.data,cached:true};
+  if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"){hostedPollRemaining=40;enterHostedFirstJob({retrieveOnly:true})}
+}
+
+async function retainHostedResult(result,projectId){
+  const record=state.hostedJobs[hostedRequestId];
+  const existing=state.items.find(i=>i.type==="foundation-job-result"&&i.data?.request_id===hostedRequestId);
+  if(existing&&(existing.projectId!==projectId||existing.data.job_id!==result.job_id||existing.data.output_sha256!==result.output_sha256)){
+    throw Error("Retained original result mismatch");
+  }
+  if(!existing){
+    const item={id:"foundation-result-"+hostedRequestId,type:"foundation-job-result",projectId,
+      title:"FRIDAY fixture output and receipt",authorityState:"DRAFT",revisionNumber:0,
+      createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+      data:{...result,delivery:{projectId,goalRef:record?.goalRef||null}}};
+    state.items.unshift(item);
+    try{save()}catch(e){state.items.shift();throw Error("Result received but private retention failed: "+e.message)}
+    if(companion&&!await persistItem(item))throw Error("Browser copy retained; SQLite copy failed");
+  }
+}
+
+async function enterHostedFirstJob({retrieveOnly=false}={}){
   if(hostedBusy)return;
+  clearTimeout(hostedPollTimer);
+  if(!retrieveOnly)hostedPollRemaining=40;
   hostedBusy=true;
-  const route="/api/foundation/hosted-first-job", requestId="request-first-001";
+  let follow=false;
+  const requestId=hostedRequestId;
   const status=$("#openDoorStatus");
-  const previous=state.chat.find(m=>m.role==="user"&&m.hostedRequestId===requestId);
   status.textContent="Checking the original FRIDAY job...";
   try{
-    if(!previous){
-      state.chat.push({role:"user",content:hostedInstruction,hostedRequestId:requestId});
+    if(!window.FoundationJobClient)throw Error("Job client unavailable. Reload Workshop; no job submitted.");
+    const record=state.hostedJobs[requestId];
+    if(record?.projectId&&record.projectId!==state.activeProject){
+      if(!state.projects.some(p=>p.id===record.projectId))throw Error("Originating project unavailable; no new submission");
+      state.activeProject=record.projectId;save();renderProjects();await loadArtifacts();
+    }
+    if(!retrieveOnly&&foundationContext&&!foundationContext.newLocalWorkEnabled)retrieveOnly=true;
+    if(!retrieveOnly&&!foundationContext?.goal){
+      await saveFoundationContext("goal",hostedInstruction);
+      if(!foundationContext?.goal)throw Error("Save project direction before submitting this job");
+    }
+    const projectId=state.activeProject;
+    if(!retrieveOnly&&!state.chat.some(m=>m.role==="user"&&m.hostedRequestId===requestId)){
+      state.chat.push({role:"user",content:hostedInstruction,hostedRequestId:requestId,workshopProjectId:projectId});
       save();
     }
-    const response=await fetch(route,previous?{cache:"no-store"}:{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({request_id:requestId,instruction:hostedInstruction})
-    });
-    const result=await response.json();
-    if(result.request_id!==requestId)throw Error("Request mismatch");
+    const goalRef=foundationContext?{projectId,revision:foundationContext.revision,sha256:foundationContext.snapshotSha256}:null;
+    const result=await window.FoundationJobClient.request({projectId,goalRef,records:state.hostedJobs,persist:save,submit:!retrieveOnly});
+    follow=["PENDING","RUNNING"].includes(result.status);
     const labels={PENDING:"Queued",RUNNING:"Running",FAILED:"Failed",BLOCKED:"Blocked",
       NOT_SUBMITTED:"No original run found",DISPATCH_UNCERTAIN:"Submission unconfirmed"};
-    hostedEvidence=undefined;
-    if(response.ok&&result.status==="COMPLETE"&&typeof result.output==="string"&&result.receipt){
+    if(result.status==="COMPLETE"){
+      await retainHostedResult(result,projectId);
       hostedEvidence=result;
       status.textContent=`Verified output: capabilities.py. Job: ${result.job_id}. Certificate: ${result.certificate_id}.`;
     }else{
@@ -49,28 +174,32 @@ async function enterHostedFirstJob(){
         (typeof result.error==="string"?": "+result.error:"")+
         ". Submit the same instruction to check the original request, not rerun it.";
     }
-  }catch{
-    hostedEvidence=undefined;
-    status.textContent="Result unavailable. Checking again retrieves the original request; it does not resubmit.";
+  }catch(e){
+    status.textContent=e.message+". No automatic retry."+(hostedEvidence?" Retained result remains available.":"");
   }finally{
     const old=state.chat.find(m=>m.role==="assistant"&&m.hostedRequestId===requestId);
-    const message={role:"assistant",content:status.textContent,hostedRequestId:requestId};
+    const message={role:"assistant",content:status.textContent,hostedRequestId:requestId,workshopProjectId:state.activeProject};
     if(old)Object.assign(old,message);else state.chat.push(message);
     hostedBusy=false;
-    $("#openDoorInput").value="";
+    $("#openDoorInput").value="";$("#chatInput").value="";
     renderChat();
     openRoom("talk");
+    if(follow&&hostedPollRemaining-->0)hostedPollTimer=setTimeout(()=>enterHostedFirstJob({retrieveOnly:true}),5000);
   }
 }
 
 async function enterOpenDoor(text){
   const raw=String(text||"").trim();
   if(!raw)return;
-  if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&raw===hostedInstruction){
+  if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&recognizesHostedInstruction(raw)){
     await enterHostedFirstJob();
     return;
   }
   const status=$("#openDoorStatus");
+  if(companion&&foundationContext?.projectId===state.activeProject&&!foundationContext.newLocalWorkEnabled){
+    status.textContent="New local jobs are paused for this project.";
+    return;
+  }
   status.textContent="I’ve got what you said. Finding the right path without making you pick a category…";
   let foundry=null;
   if(companion){
@@ -78,6 +207,11 @@ async function enterOpenDoor(text){
       const response=await api("/api/foundry/human-signal",{method:"POST",body:JSON.stringify({rawText:raw,projectId:state.activeProject})});
       foundry=response?.foundry||null;
     }catch(_err){
+      if(_err.message.includes('NEW_LOCAL_WORK_STOPPED')){
+        status.textContent="New local jobs are paused for this project.";
+        await loadFoundationContext();
+        return;
+      }
       foundry=null;
     }
   }
@@ -115,21 +249,21 @@ function bind(root){root.querySelectorAll("[data-open]").forEach(b=>b.onclick=()
 function renderRecent(){const list=state.items.slice(0,6),e=$("#recentList");e.innerHTML=list.length?list.map(itemHTML).join(""):'<p class="muted">Saved artifacts will appear here.</p>';bind(e);if(list[0])$("#resumeText").textContent=`Last saved: ${list[0].title}. Continue there or start something else.`}
 function renderWork(){const q=$("#workSearch").value.toLowerCase(),k=$("#workKind").value,list=state.items.filter(i=>(k==="all"||i.type===k)&&(`${i.title} ${JSON.stringify(i.data)}`.toLowerCase().includes(q)));const e=$("#workList");e.innerHTML=list.length?list.map(itemHTML).join(""):'<p class="muted">No matching work.</p>';bind(e)}
 $("#workSearch").oninput=renderWork;$("#workKind").onchange=renderWork;const closeHistory=$("#closeHistory");if(closeHistory)closeHistory.onclick=()=>{$("#historyPanel").hidden=true}
-function openItem(idv){const i=state.items.find(x=>x.id===idv);if(!i)return;if(i.type==="document"){state.draft.title=i.title;state.draft.body=i.data.body||"";state.draft.versions=i.data.versions||[];syncDraft();openRoom("write")}else if(i.type==="conversation"){state.chat=i.data.messages||[];renderChat();openRoom("talk")}else if(i.type==="music"){state.music=i.data.music||state.music;state.draft.songNotes=i.data.notes||"";syncMusic();openRoom("music")}else if(i.type==="video"){state.draft.videoNotes=i.data.notes||"";$("#videoNotes").value=state.draft.videoNotes;openRoom("video")}else if(i.type==="research"){Object.assign(state.draft,{mission:i.data.mission||"",findings:i.data.findings||"",sources:i.data.sources||""});syncResearch();openRoom("research")}else if(i.type==="image"&&i.data.png){const img=new Image();img.onload=()=>{const c=$("#imageCanvas"),x=c.getContext("2d");c.width=img.width;c.height=img.height;x.drawImage(img,0,0);imageOriginal=i.data.png;openRoom("image")};img.src=i.data.png}}
+function openItem(idv){const i=state.items.find(x=>x.id===idv);if(!i)return;if(i.type==="foundation-job-result"){openHostedResultItem(i);return}if(i.type==="document"){state.draft.title=i.title;state.draft.body=i.data.body||"";state.draft.versions=i.data.versions||[];syncDraft();openRoom("write")}else if(i.type==="conversation"){state.chat=i.data.messages||[];renderChat();openRoom("talk")}else if(i.type==="music"){state.music=i.data.music||state.music;state.draft.songNotes=i.data.notes||"";syncMusic();openRoom("music")}else if(i.type==="video"){state.draft.videoNotes=i.data.notes||"";$("#videoNotes").value=state.draft.videoNotes;openRoom("video")}else if(i.type==="research"){Object.assign(state.draft,{mission:i.data.mission||"",findings:i.data.findings||"",sources:i.data.sources||""});syncResearch();openRoom("research")}else if(i.type==="image"&&i.data.png){const img=new Image();img.onload=()=>{const c=$("#imageCanvas"),x=c.getContext("2d");c.width=img.width;c.height=img.height;x.drawImage(img,0,0);imageOriginal=i.data.png;openRoom("image")};img.src=i.data.png}}
 const prompts=["What's a memory you return to even when you are not trying to?","What room from your past can you still see clearly?","What sound puts you back in another time?","Who do you still speak to in your head?","What ordinary object carries more history than anyone would guess?"];
 function renderChat(){
   if(!state.chat.length)state.chat=[{role:"assistant",content:`Hey ${state.settings.userName}. How's it going today?`}];
   const messages=$("#messages");
-  messages.innerHTML=state.chat.map(m=>`<div class="message ${m.role}">${esc(m.content)}${m.role==="assistant"&&m.hostedRequestId&&hostedEvidence?` <button type="button" data-hosted-proof>Download output and receipt</button>`:""}</div>`).join("");
+  messages.innerHTML=state.chat.map(m=>`<div class="message ${m.role}">${esc(m.content)}${m.role==="assistant"&&m.hostedRequestId===hostedEvidence?.request_id&&m.workshopProjectId===state.activeProject?`<p>${hostedEvidence.cached?"Retained copy; verification is historical":"Original run "+esc(hostedEvidence.run_id)}</p><pre class="foundation-output">${esc(hostedEvidence.output)}</pre><button type="button" data-hosted-proof>Download output and receipt</button>`:""}</div>`).join("");
   const button=messages.querySelector("[data-hosted-proof]");
   if(button)button.onclick=()=>{
     const url=URL.createObjectURL(new Blob([JSON.stringify(hostedEvidence,null,2)],{type:"application/json"}));
-    const link=document.createElement("a");link.href=url;link.download="friday-request-first-001.json";link.click();
+    const link=document.createElement("a");link.href=url;link.download="friday-"+hostedEvidence.request_id+".json";link.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   messages.scrollTop=messages.scrollHeight;save();
 }
-$("#memoryPrompt").onclick=()=>{$("#chatInput").value=prompts[Math.floor(Math.random()*prompts.length)]};$("#chatForm").onsubmit=async e=>{e.preventDefault();const text=$("#chatInput").value.trim();if(!text)return;state.chat.push({role:"user",content:text});$("#chatInput").value="";renderChat();const reply=await aiReply(text);state.chat.push({role:"assistant",content:reply});renderChat();if(state.settings.speakReplies)speak(reply)}
+$("#memoryPrompt").onclick=()=>{$("#chatInput").value=prompts[Math.floor(Math.random()*prompts.length)]};$("#chatForm").onsubmit=async e=>{e.preventDefault();const text=$("#chatInput").value.trim();if(!text)return;if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&recognizesHostedInstruction(text)){await enterHostedFirstJob();return}state.chat.push({role:"user",content:text});$("#chatInput").value="";renderChat();const reply=await aiReply(text);state.chat.push({role:"assistant",content:reply});renderChat();if(state.settings.speakReplies)speak(reply)}
 async function aiReply(text){const s=state.settings;if(s.endpoint&&s.model){try{const context=state.items.slice(0,8).map(i=>`${i.type}: ${i.title}`).join("\n");const messages=[{role:"system",content:`You are ${s.companionName}, Randy's natural creative companion inside Twis Holo Workshop. Active project: ${active()?.title}. Recent artifacts:\n${context}\nHelp with conversation, writing, music, video, images, research, and building. Preserve constraints. Do not force project-management language.`},...state.chat.slice(-20)];if(companion){const d=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({endpoint:s.endpoint,model:s.model,apiKey:s.apiKey,messages})});return d.text||"No text returned."}const h={"Content-Type":"application/json"};if(s.apiKey)h.Authorization=`Bearer ${s.apiKey}`;const r=await fetch(s.endpoint,{method:"POST",headers:h,body:JSON.stringify({model:s.model,messages,temperature:.8})});const d=await r.json();return d.choices?.[0]?.message?.content||d.response||"No text returned."}catch(e){$("#aiStatus").textContent="AI connection failed: "+e.message}}const l=text.toLowerCase();if(/story|write|scene/.test(l))return "Tell me the image, line, or moment you can already see. We can build the story from there.";if(/music|beat|song/.test(l))return "Open Music and begin with the rhythm or the words—whichever is already alive.";if(/memory|remember/.test(l))return prompts[Math.floor(Math.random()*prompts.length)];return "I'm here. Keep going—what part of that matters most right now?"}
 $("#saveChat").onclick=()=>addItem("conversation",`Conversation ${new Date().toLocaleDateString()}`,{messages:clone(state.chat)});$("#chatToStory").onclick=()=>{state.draft.title="Conversation Story Draft";state.draft.body=state.chat.map(m=>`${m.role==="user"?state.settings.userName:state.settings.companionName}: ${m.content}`).join("\n\n");state.draft.versions=[];syncDraft();openRoom("write")};$("#closeSession").onclick=async()=>{const summary=prompt("What should the Workshop remember about this session?")||"";const nextAction=prompt("What is the next action?")||"";if(companion)await api(`/api/projects/${state.activeProject}/sessions`,{method:"POST",body:JSON.stringify({room,nextAction,summary,activeConstraints:[]})});toast("Session closed")}
 function syncDraft(){$("#docTitle").value=state.draft.title;$("#docBody").value=state.draft.body;count();renderVersions()}["docTitle","docBody"].forEach(i=>$("#"+i).oninput=()=>{state.draft.title=$("#docTitle").value;state.draft.body=$("#docBody").value;save();count()});function count(){$("#wordCount").textContent=`${($("#docBody").value.trim().match(/\S+/g)||[]).length} words`}function renderVersions(){$("#versions").innerHTML=(state.draft.versions||[]).map((v,i)=>`<button data-version="${i}" class="quiet">${new Date(v.at).toLocaleString()}</button>`).join("")||'<span class="muted">No snapshots.</span>';$$("[data-version]").forEach(b=>b.onclick=()=>{$("#docBody").value=state.draft.versions[+b.dataset.version].body;$("#docBody").dispatchEvent(new Event("input"))})}
@@ -150,7 +284,7 @@ async function loadModules(){try{modules=companion?await api("/api/modules"):awa
 function speak(t){if(!("speechSynthesis"in window)||!t.trim())return;speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t.slice(0,10000)))}$("#micBtn").onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast("Speech recognition unavailable");const r=new SR();r.onresult=e=>{const t=e.results[0][0].transcript,input=room==="write"?$("#docBody"):$("#chatInput");input.value+=(input.value?" ":"")+t;input.dispatchEvent(new Event("input"))};r.start();toast("Listening…")}
 function loadSettings(){const s=state.settings;$("#userName").value=s.userName;$("#companionName").value=s.companionName;$("#speakReplies").checked=s.speakReplies;$("#lowMotion").checked=s.lowMotion;$("#aiEndpoint").value=s.endpoint;$("#aiModel").value=s.model;$("#aiKey").value=s.apiKey;$("#cloudflareUrl").value=s.cloudflareUrl;document.body.classList.toggle("low-motion",s.lowMotion);$("#aiStatus").textContent=s.endpoint?"AI adapter configured":"Built-in companion mode"}$("#saveSettings").onclick=()=>{Object.assign(state.settings,{userName:$("#userName").value||"Randy",companionName:$("#companionName").value||"Workshop",speakReplies:$("#speakReplies").checked,lowMotion:$("#lowMotion").checked});save();loadSettings();toast("Settings saved")};$("#saveAI").onclick=()=>{Object.assign(state.settings,{endpoint:$("#aiEndpoint").value.trim(),model:$("#aiModel").value.trim(),apiKey:$("#aiKey").value});save();loadSettings();toast("AI adapter saved")};$("#saveCloudflare").onclick=()=>{state.settings.cloudflareUrl=$("#cloudflareUrl").value.trim();save();toast("Cloudflare URL saved")}
 $("#exportProject").onclick=async()=>{if(companion){const d=await api(`/api/projects/${state.activeProject}/capsule`,{method:"POST",body:"{}"});toast("Capsule created: "+d.path)}else{const blob=new Blob([JSON.stringify({project:active(),items:state.items},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${state.activeProject}-capsule.json`;a.click();URL.revokeObjectURL(a.href)}}
-function renderAll(){renderChat();syncDraft();syncMusic();$("#videoNotes").value=state.draft.videoNotes;syncResearch();renderRecent();renderModules();loadSettings();newQuestions()}
+function renderAll(){renderChat();syncDraft();syncMusic();$("#videoNotes").value=state.draft.videoNotes;syncResearch();renderRecent();renderModules();loadSettings();newQuestions();renderFoundationContext()}
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("service-worker.js").catch(()=>{});
 }

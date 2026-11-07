@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v16-private-proof";
+const CACHE_NAME = "twis-holo-workshop-v18-commissioning-successor";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,8 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./assets/style.css",
   "./assets/app.js",
+  "./assets/foundation-context-store.js",
+  "./assets/foundation-job-client.js",
   "./assets/twis-loop-deck.css",
   "./assets/twis-loop-deck-v2.js",
   "./assets/twis-loop-deck-modules.js",
@@ -37,7 +39,7 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  if (url.origin === self.location.origin && url.pathname.startsWith("/api/foundation/")) return;
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) return;
   const isNavigation = event.request.mode === "navigate" || event.request.destination === "document";
   if (isNavigation) {
     event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./loop-deck.html")||caches.match("./index.html"))));
