@@ -132,3 +132,16 @@ textarea{resize:vertical}
   .panel,.hero{padding:12px}
   #messages{height:50vh}
 }
+.project-context{padding:0 0 24px;margin-bottom:24px;border-bottom:1px solid var(--line,#294653)}
+.project-context h2{font-size:24px}
+.project-context form{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr) auto;gap:12px;align-items:end}
+.project-context label{display:grid;gap:6px;min-width:0}
+.project-context label.check{display:flex;align-items:center}
+.project-context textarea{min-height:96px;resize:vertical}
+.project-context p,.project-context code{overflow-wrap:anywhere;white-space:pre-wrap}
+.project-context li{margin:12px 0}
+.project-context time{color:var(--muted,#a2bac5);font-size:14px}
+.project-context summary{cursor:pointer;padding:8px 0}
+#contextReceipt{font-size:13px}
+.foundation-output{max-height:360px;overflow:auto;font-size:13px;white-space:pre;max-width:100%}
+@media(max-width:700px){.project-context form{grid-template-columns:1fr}.project-context form button{justify-self:start}.project-context .section-head{flex-wrap:wrap}}

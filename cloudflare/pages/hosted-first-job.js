@@ -3,18 +3,20 @@ import { unzipSync } from 'fflate';
 
 const REPO = 'Karmicmurphy/temporal-capability-foundry';
 const HARNESS = 'Karmicmurphy/Harness-card';
-const WORKFLOW = 'friday-first-job.yml';
 const HOST = 'https://ollie-twis-holo-workshop.pages.dev';
 export const REQUEST = 'request-first-001';
 export const INSTRUCTION = 'Repair only the isolated AIOS path-containment test fixture.';
 const RECIPE = 'aios-path-containment-fixture-v1';
-const MANIFEST = '4d4e1956d8bb4cca939e3ce025ff4bfb5dc581ffef328dda34d1404f5cc98704';
 const REHEARSAL_JOB = 'job:644d806c386c213f0a5cc50c';
 const OWNER = 141688225;
 const SHA = /^[0-9a-f]{40}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
 const keys = new Map();
 const decoder = new TextDecoder('utf-8', { fatal: true });
+
+// Only compiled release modules choose a contract; request bodies cannot select one.
+export function createHostedHandler({ workflow, requestId, manifestSha, envPrefix }) {
+const WORKFLOW = workflow, REQUEST = requestId, MANIFEST = manifestSha;
 const fail = (status, code) => { throw Object.assign(new Error(code), { status }); };
 const json = (body, status = 200) => Response.json(body, {
   status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
@@ -48,7 +50,7 @@ async function bytes(response, limit) {
 }
 
 // The existing Workshop Access contract: verified RS256 claims, not email or an unsigned header.
-export async function authorize(request, env, resolver) {
+async function authorize(request, env, resolver) {
   const domain = env.FOUNDATION_ACCESS_DOMAIN;
   if (!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain || '') ||
       !env.FOUNDATION_ACCESS_AUD || !env.FOUNDATION_OWNER_SUB) fail(503, 'OWNER_AUTH_NOT_CONFIGURED');
@@ -96,7 +98,7 @@ function checkRun(run, control) {
       run.repository?.full_name !== REPO) fail(409, 'RUN_BINDING_MISMATCH');
 }
 
-export async function verifyBundle(bundle, run, control) {
+async function verifyBundle(bundle, run, control) {
   const expected = { 'receipt.json': 1_000_000, 'source-manifest.json': 200_000,
     'verified-lesson.json': 100_000, 'capabilities.py': 100_000 };
   const seen = new Set();
@@ -166,18 +168,18 @@ async function originalArtifact(env, fetcher, run, control) {
     proof_url: `https://github.com/${REPO}/actions/runs/${run.id}/artifacts/${artifact.id}` };
 }
 
-export async function handle({ request, env }, deps = {}) {
+async function handle({ request, env }, deps = {}) {
   const fetcher = deps.fetch || fetch;
-  const control = env.FRIDAY_HOSTED_CONTROL_SHA;
+  const control = env[envPrefix + '_CONTROL_SHA'];
   try {
     const url = new URL(request.url);
     if (url.origin !== HOST || url.search) fail(403, 'WORKSHOP_ORIGIN_REQUIRED');
-    if (env.FRIDAY_HOSTED_READ_ENABLED !== 'true' ||
+    if (env[envPrefix + '_READ_ENABLED'] !== 'true' ||
         !env.FOUNDATION_GITHUB_TOKEN || !SHA.test(control || '')) fail(503, 'HOSTED_READ_DISABLED');
     await authorize(request, env, deps.keyResolver);
     if (!['GET', 'POST'].includes(request.method)) fail(405, 'METHOD_NOT_ALLOWED');
     if (request.method === 'POST') {
-      if (env.FRIDAY_HOSTED_SUBMIT_ENABLED !== 'true') fail(503, 'NEW_WORK_STOPPED');
+      if (env[envPrefix + '_SUBMIT_ENABLED'] !== 'true') fail(503, 'NEW_WORK_STOPPED');
       if (request.headers.get('origin') !== HOST ||
           request.headers.get('content-type')?.split(';')[0] !== 'application/json') fail(403, 'SAME_ORIGIN_JSON_REQUIRED');
       const body = JSON.parse(decoder.decode(await bytes(request, 512)));
@@ -223,3 +225,9 @@ export async function handle({ request, env }, deps = {}) {
       error: error.status ? error.message : 'UPSTREAM_OR_PROOF_UNAVAILABLE' }, error.status || 502);
   }
 }
+return { authorize, verifyBundle, handle };
+}
+
+const original = createHostedHandler({ workflow: 'friday-first-job.yml', requestId: REQUEST,
+  manifestSha: '4d4e1956d8bb4cca939e3ce025ff4bfb5dc581ffef328dda34d1404f5cc98704', envPrefix: 'FRIDAY_HOSTED' });
+export const { authorize, verifyBundle, handle } = original;

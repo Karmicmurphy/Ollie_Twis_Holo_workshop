@@ -37,3 +37,12 @@ jobs:
         run: node tests/cloudflare_worker_contract_test.mjs
       - name: Build static Pages output
         run: npm install && npm run build
+      - name: Foundation client and successor security contracts
+        run: node --test tests/foundation-*.test.mjs tests/hosted-successor.test.mjs
+      - name: Compile Pages Functions and verify fail-closed API behavior
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          FRIDAY_FUNCTIONS_BUNDLE: .ci-foundation-functions/index.js
+        run: |
+          npx --no-install wrangler pages functions build functions --outdir .ci-foundation-functions
+          node tests/compiled-successor.test.mjs

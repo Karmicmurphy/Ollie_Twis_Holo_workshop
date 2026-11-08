@@ -27,6 +27,7 @@ from generation_layer import create_generation_job, load_generation_adapters
 from flashriver_intake import stage_flashriver_package
 from foundry_bridge import compile_human_signal_job as foundry_compile_human_signal_job, foundry_base_url
 from source_yard_inventory import inventory_source_yard
+from project_context import ContextConflict, append_event, empty_context, project_view
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
@@ -372,8 +373,12 @@ def upsert_project(con, pid: str, title: str, description: str = "", next_action
 def write_registry_snapshot() -> None:
     con = connect()
     projects = [dict(r) for r in con.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()]
-    artifacts = [dict(r) for r in con.execute("SELECT * FROM artifacts ORDER BY updated_at DESC").fetchall()]
-    receipts = [dict(r) for r in con.execute("SELECT * FROM receipts ORDER BY created_at DESC LIMIT 1000").fetchall()]
+    rows = [dict(r) for r in con.execute("SELECT * FROM artifacts ORDER BY updated_at DESC").fetchall()]
+    private_ids = {r["id"] for r in rows if r["kind"] in {"foundation-context", "foundation-job-result"}}
+    artifacts = [r for r in rows if r["id"] not in private_ids]
+    receipts = [dict(r) for r in con.execute("SELECT * FROM receipts ORDER BY created_at DESC LIMIT 1000").fetchall()
+                if not r["action"].startswith("foundation.context.")
+                and json.loads(r["details"]).get("artifactId") not in private_ids]
     con.close()
     now = utc()
     (REGISTRY / "projects.json").write_text(json.dumps({"schemaVersion": "0.1", "exportedAt": now, "projects": projects}, indent=2), encoding="utf-8")
@@ -435,6 +440,79 @@ def save_artifact_row(
     return {**rev, "createdAt": created_at}
 
 
+def foundation_context(con, project_id):
+    aid = f"foundation-context:{project_id}"
+    row = con.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
+    document = empty_context(project_id)
+    revision, revision_id, digest = 0, None, None
+    if row:
+        if row["project_id"] != project_id or row["kind"] != "foundation-context" or row["retired_at"]:
+            raise ContextConflict("project context identity is unavailable")
+        document = json.loads(row["payload"])
+        if document.get("projectId") != project_id:
+            raise ContextConflict("project context belongs to another project")
+        revision, revision_id = row["revision_number"], row["current_revision_id"]
+        saved = con.execute("SELECT * FROM artifact_revisions WHERE id=?", (revision_id,)).fetchone()
+        actual = normalized_artifact_snapshot({"id": aid, "projectId": project_id,
+            "kind": row["kind"], "title": row["title"], "path": row["path"],
+            "payload": document, "authorityState": row["authority_state"], "retiredAt": row["retired_at"]})
+        if (not saved or saved["artifact_id"] != aid or saved["project_id"] != project_id
+                or saved["revision_number"] != revision
+                or snapshot_sha256(actual) != saved["snapshot_sha256"]
+                or json.loads(saved["snapshot_json"]) != actual):
+            raise ContextConflict("project context revision integrity failed")
+        digest = saved["snapshot_sha256"]
+    view = project_view(document)
+    view.update({"revision": revision, "revisionId": revision_id, "snapshotSha256": digest,
+                 "storage": "WORKSHOP_SQLITE", "proofScope": "CONTEXT_STORAGE_NOT_JOB_CERTIFICATION"})
+    view["jobs"] = [dict(r) for r in con.execute(
+        "SELECT id,operation,status,created_at,updated_at FROM jobs WHERE project_id=? ORDER BY updated_at DESC LIMIT 100",
+        (project_id,)).fetchall()]
+    return document, view
+
+
+def append_foundation_context(project_id, request):
+    con = connect()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        if not con.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise ContextConflict("project does not exist")
+        document, current = foundation_context(con, project_id)
+        updated, duplicate = append_event(document, request, utc())
+        if duplicate:
+            con.rollback()
+            return {**current, "duplicate": True}
+        if request["expectedRevision"] != current["revision"]:
+            raise ContextConflict("project changed; reload its current revision")
+        now = utc()
+        artifact = {"id": f"foundation-context:{project_id}", "projectId": project_id,
+                    "kind": "foundation-context", "title": "Project context", "path": "",
+                    "payload": updated, "authorityState": "OWNER_INTENT", "retiredAt": None,
+                    "createdAt": now, "updatedAt": now}
+        rev = save_artifact_row(con, artifact, current["revision"], "local-interface",
+                                "foundation.context." + request["kind"])
+        con.execute("UPDATE projects SET updated_at=? WHERE id=?", (now, project_id))
+        _, view = foundation_context(con, project_id)
+        con.commit()
+        return {**view, "duplicate": False, "contextReceipt": {
+            "revisionId": rev["id"], "snapshotSha256": rev["snapshotSha256"],
+            "scope": "CONTEXT_STORAGE_NOT_JOB_CERTIFICATION"}}
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+
+
+def local_project_work_enabled(project_id):
+    con = connect()
+    try:
+        _, view = foundation_context(con, project_id)
+        return view["newLocalWorkEnabled"]
+    finally:
+        con.close()
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "TwisHoloCompanion/1.5"
 
@@ -463,6 +541,18 @@ class Handler(SimpleHTTPRequestHandler):
             if u.path == "/api/projects":
                 con = connect(); rows = con.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall(); con.close()
                 json_response(self, 200, [dict(r) for r in rows]); return
+            if u.path.startswith("/api/projects/") and u.path.endswith("/foundation/context"):
+                parts = u.path.strip("/").split("/")
+                if len(parts) != 5:
+                    json_response(self, 404, {"error": "context route not found"}); return
+                pid = safe_id(parts[2]); con = connect()
+                try:
+                    if not con.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone():
+                        json_response(self, 404, {"error": "project not found"}); return
+                    _, view = foundation_context(con, pid)
+                finally:
+                    con.close()
+                json_response(self, 200, view); return
             if u.path.startswith("/api/projects/") and u.path.endswith("/artifacts"):
                 pid = safe_id(u.path.split("/")[3]); search = (q.get("q") or [""])[0].strip()
                 con = connect()
@@ -548,6 +638,15 @@ class Handler(SimpleHTTPRequestHandler):
             return
         u = urllib.parse.urlparse(self.path)
         try:
+            if u.path.startswith("/api/projects/") and u.path.endswith("/foundation/context"):
+                parts = u.path.strip("/").split("/")
+                if len(parts) != 5:
+                    json_response(self, 404, {"error": "context route not found"}); return
+                try:
+                    view = append_foundation_context(safe_id(parts[2]), body_json(self))
+                except ContextConflict as exc:
+                    json_response(self, 409, {"error": str(exc)}); return
+                json_response(self, 200, view); return
             if u.path == "/api/inventory-source-yard":
                 x = body_json(self)
                 source = x.get("path", "")
@@ -584,6 +683,8 @@ class Handler(SimpleHTTPRequestHandler):
                 raw_text = x.get("rawText", "")
                 pid_raw = x.get("projectId")
                 pid = safe_id(pid_raw) if pid_raw else None
+                if pid and not local_project_work_enabled(pid):
+                    json_response(self, 409, {"error": "NEW_LOCAL_WORK_STOPPED", "cancellationConfirmed": False}); return
                 result = foundry_compile_human_signal_job(
                     raw_text,
                     input_data=foundry_compile_input(pid),
@@ -621,6 +722,8 @@ class Handler(SimpleHTTPRequestHandler):
                     if p.exists() and p.is_file():
                         sha = sha256_file(p)
                 requested_authority = x.get("authorityState", "DRAFT")
+                if x.get("kind") == "foundation-context" or str(aid).startswith("foundation-context:"):
+                    json_response(self, 409, {"error": "project context requires its revision-checked route"}); return
                 con = connect()
                 existing = con.execute("SELECT project_id,authority_state,revision_number FROM artifacts WHERE id=?", (aid,)).fetchone()
                 if existing and existing["project_id"] != pid:
@@ -775,6 +878,8 @@ class Handler(SimpleHTTPRequestHandler):
                     json_response(self, 502, {"error": str(e)}); return
             if u.path == "/api/generation/jobs":
                 x = body_json(self); pid = safe_id(x.get("projectId", ""))
+                if not local_project_work_enabled(pid):
+                    json_response(self, 409, {"error": "NEW_LOCAL_WORK_STOPPED", "cancellationConfirmed": False}); return
                 out = create_generation_job(pid, x)
                 if not out.get("ok"):
                     json_response(self, 400, out); return
@@ -784,6 +889,8 @@ class Handler(SimpleHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "id": job["id"], "status": job["status"]}); return
             if u.path == "/api/jobs":
                 x = body_json(self); jid = str(uuid.uuid4()); now = utc(); pid = safe_id(x.get("projectId", "unassigned"))
+                if not local_project_work_enabled(pid):
+                    json_response(self, 409, {"error": "NEW_LOCAL_WORK_STOPPED", "cancellationConfirmed": False}); return
                 con = connect(); con.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?)", (jid, pid, x.get("operation", "unknown"), "queued", json.dumps(x), "{}", now, now))
                 add_receipt(con, pid, "job.queued", "human-or-tool", {"id": jid, "operation": x.get("operation", "unknown")})
                 con.commit(); con.close()
@@ -809,7 +916,7 @@ class Handler(SimpleHTTPRequestHandler):
                 r = con.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
                 if not r:
                     con.close(); json_response(self, 404, {"error": "artifact not found"}); return
-                if r["authority_state"] in {"SOURCE", "PERMANENT_SOURCE", "CANON"}:
+                if r["authority_state"] in {"SOURCE", "PERMANENT_SOURCE", "CANON"} or r["kind"] == "foundation-context":
                     con.close(); json_response(self, 409, {"error": "protected source/canon cannot be retired through the generic route"}); return
                 artifact = {
                     "id": r["id"], "projectId": r["project_id"], "kind": r["kind"], "title": r["title"],
