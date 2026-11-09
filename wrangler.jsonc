@@ -7,5 +7,17 @@
     "TWIS_REMOTE_HULL_MODE": "public-shell",
     "TWIS_ALLOW_AI": "false",
     "TWIS_ALLOW_REMOTE_WRITE": "false"
+  },
+  "env": {
+    "production": {
+      "vars": {
+        "TWIS_REMOTE_HULL_MODE": "public-shell",
+        "TWIS_ALLOW_AI": "false",
+        "TWIS_ALLOW_REMOTE_WRITE": "false",
+        "FRIDAY_SUCCESSOR_CONTROL_SHA": "08f86bcfed3a9e41a0cb95ef0112db32082dc479",
+        "FRIDAY_SUCCESSOR_READ_ENABLED": "true",
+        "FRIDAY_SUCCESSOR_SUBMIT_ENABLED": "false"
+      }
+    }
   }
 }
