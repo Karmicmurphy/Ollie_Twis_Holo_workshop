@@ -1,4 +1,4 @@
-"""The native Pages build must retain the reviewed, disabled-only contract."""
+"""The native Pages build must retain the approved one-run commissioning contract."""
 import json
 from pathlib import Path
 import unittest
@@ -24,14 +24,14 @@ class SuccessorPagesConfigurationTests(unittest.TestCase):
             "$schema", "name", "pages_build_output_dir", "compatibility_date", "vars", "env",
         })
 
-    def test_production_has_exact_reviewed_control_and_submissions_disabled(self):
+    def test_production_has_exact_reviewed_control_and_supervised_submission(self):
         production = self.config["env"]["production"]
         self.assertEqual(set(production), {"vars"})
         self.assertEqual(production["vars"], {
             **BASE_VARS,
             "FRIDAY_SUCCESSOR_CONTROL_SHA": "08f86bcfed3a9e41a0cb95ef0112db32082dc479",
             "FRIDAY_SUCCESSOR_READ_ENABLED": "true",
-            "FRIDAY_SUCCESSOR_SUBMIT_ENABLED": "false",
+            "FRIDAY_SUCCESSOR_SUBMIT_ENABLED": "true",
         })
 
     def test_local_and_preview_do_not_receive_successor_settings(self):
