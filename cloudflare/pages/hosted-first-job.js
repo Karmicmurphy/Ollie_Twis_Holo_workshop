@@ -162,7 +162,10 @@ async function originalArtifact(env, fetcher, run, control, stage = () => {}) {
     if (url.protocol !== 'https:' || url.username || url.password || url.port ||
         !/(^|\.)(githubusercontent\.com|blob\.core\.windows\.net)$/.test(url.hostname)) fail(502, 'ARTIFACT_REDIRECT_DENIED');
     stage('ARTIFACT_REDIRECT_DOWNLOAD');
-    response = await fetcher(url.href, { redirect: 'error', signal: AbortSignal.timeout(12000) });
+    // Cloudflare Workers does not implement redirect: 'error'. Use manual
+    // and reject any further hop; never forward the GitHub bearer token.
+    response = await fetcher(url.href, { redirect: 'manual', signal: AbortSignal.timeout(12000) });
+    if (response.status >= 300 && response.status < 400) fail(502, 'ARTIFACT_REDIRECT_DENIED');
     if (!response.ok) fail(502, 'ARTIFACT_DOWNLOAD_FAILED');
   }
   stage('ARTIFACT_READ_BYTES');
