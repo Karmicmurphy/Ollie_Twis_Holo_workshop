@@ -49,7 +49,7 @@ test('003 GET tolerates extra query text only on canonical host without dispatch
   let calls = 0;
   const fetcher = async (url, opts) => {
     calls++;
-    assert.match(url, /friday-commissioning-003.yml\\/runs/);
+    assert.ok(url.includes('friday-commissioning-003.yml/runs'));
     assert.notEqual(opts.method, 'POST');
     return Response.json({ total_count: 0, workflow_runs: [] });
   };
