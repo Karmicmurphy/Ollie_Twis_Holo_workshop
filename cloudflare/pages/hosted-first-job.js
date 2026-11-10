@@ -146,7 +146,8 @@ async function verifyBundle(bundle, run, control) {
     output: decoder.decode(files['capabilities.py']), receipt: { dispatch, result }, manifest, lesson };
 }
 
-async function originalArtifact(env, fetcher, run, control) {
+async function originalArtifact(env, fetcher, run, control, stage = () => {}) {
+  stage('ARTIFACT_LIST');
   const { artifacts, total_count } = await getJson(env, fetcher, `repos/${REPO}/actions/runs/${run.id}/artifacts?per_page=100`);
   if (!Array.isArray(artifacts) || total_count !== artifacts.length) fail(409, 'INCOMPLETE_ARTIFACT_LIST');
   const matching = artifacts.filter(a => a.name === 'friday-' + REQUEST);
@@ -154,16 +155,21 @@ async function originalArtifact(env, fetcher, run, control) {
   const artifact = matching[0];
   if (!Number.isSafeInteger(artifact.id) || artifact.id < 1 || artifact.size_in_bytes > 2_000_000 ||
       !/^sha256:[a-f0-9]{64}$/.test(artifact.digest || '')) fail(409, 'ARTIFACT_METADATA_INVALID');
+  stage('ARTIFACT_ZIP_REQUEST');
   let response = await github(env, fetcher, `repos/${REPO}/actions/artifacts/${artifact.id}/zip`);
   if (response.status === 302) {
     const url = new URL(response.headers.get('location'));
     if (url.protocol !== 'https:' || url.username || url.password || url.port ||
         !/(^|\.)(githubusercontent\.com|blob\.core\.windows\.net)$/.test(url.hostname)) fail(502, 'ARTIFACT_REDIRECT_DENIED');
+    stage('ARTIFACT_REDIRECT_DOWNLOAD');
     response = await fetcher(url.href, { redirect: 'error', signal: AbortSignal.timeout(12000) });
     if (!response.ok) fail(502, 'ARTIFACT_DOWNLOAD_FAILED');
   }
+  stage('ARTIFACT_READ_BYTES');
   const bundle = await bytes(response, 2_000_000);
+  stage('ARTIFACT_DIGEST');
   if ('sha256:' + await sha256(bundle) !== artifact.digest) fail(409, 'ARTIFACT_DIGEST_MISMATCH');
+  stage('ARTIFACT_VERIFY_BUNDLE');
   return { status: 'COMPLETE', ...await verifyBundle(bundle, run, control),
     proof_url: `https://github.com/${REPO}/actions/runs/${run.id}/artifacts/${artifact.id}` };
 }
@@ -171,6 +177,7 @@ async function originalArtifact(env, fetcher, run, control) {
 async function handle({ request, env }, deps = {}) {
   const fetcher = deps.fetch || fetch;
   const control = env[envPrefix + '_CONTROL_SHA'];
+  let diagnosticPhase = 'BEFORE_AUTHENTICATION';
   try {
     const url = new URL(request.url);
     // A harmless, authenticated 003 GET may arrive with browser-added query text.
@@ -198,15 +205,17 @@ async function handle({ request, env }, deps = {}) {
       const body = JSON.parse(decoder.decode(await bytes(request, 512)));
       if (stable(body) !== stable({ request_id: REQUEST, instruction: INSTRUCTION })) fail(400, 'FIXED_REQUEST_REQUIRED');
     }
+    diagnosticPhase = 'HISTORY_LOOKUP';
     const history = await getJson(env, fetcher, `repos/${REPO}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&per_page=100`);
     if (!Array.isArray(history.workflow_runs) || history.total_count !== history.workflow_runs.length) fail(409, 'INCOMPLETE_HISTORY');
     const first = history.workflow_runs.filter(r => r.run_number === 1);
     if (first.length > 1 || (history.total_count && !first.length)) fail(409, 'ORIGINAL_RUN_UNCERTAIN');
     const run = first[0];
     if (run) {
+      diagnosticPhase = 'RUN_BINDING';
       checkRun(run, control);
       const status = run.status === 'completed' ?
-        (run.conclusion === 'success' ? await originalArtifact(env, fetcher, run, control) : { status: 'FAILED' }) :
+        (run.conclusion === 'success' ? await originalArtifact(env, fetcher, run, control, phase => { diagnosticPhase = phase; }) : { status: 'FAILED' }) :
         { status: run.status === 'in_progress' ? 'RUNNING' : 'PENDING' };
       return json({ request_id: REQUEST, run_id: run.id, ...status });
     }
@@ -234,8 +243,12 @@ async function handle({ request, env }, deps = {}) {
     } catch { return json({ request_id: REQUEST, status: 'DISPATCH_UNCERTAIN' }, 202); }
     return json({ request_id: REQUEST, status: 'PENDING' }, 202);
   } catch (error) {
+    // Only the original, read-only 003 status route reports a fixed diagnostic phase.
+    // No raw exception, token, upstream URL, or transport detail is exposed.
+    const extra = REQUEST === 'request-commissioning-003' &&
+      request.method === 'GET' && !error?.status ? { phase: diagnosticPhase } : {};
     return json({ request_id: REQUEST, status: 'BLOCKED',
-      error: error.status ? error.message : 'UPSTREAM_OR_PROOF_UNAVAILABLE' }, error.status || 502);
+      error: error?.status ? error.message : 'UPSTREAM_OR_PROOF_UNAVAILABLE', ...extra }, error?.status || 502);
   }
 }
 return { authorize, verifyBundle, handle };
