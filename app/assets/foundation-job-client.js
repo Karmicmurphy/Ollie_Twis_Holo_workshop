@@ -1,7 +1,7 @@
 (() => {
-  const REQUEST = 'request-commissioning-002';
+  const REQUEST = 'request-commissioning-003';
   const INSTRUCTION = 'Repair only the isolated AIOS path-containment test fixture.';
-  const ROUTE = '/api/foundation/hosted-commissioning-successor';
+  const ROUTE = '/api/foundation/hosted-commissioning-003';
   const normalize = value => String(value || '').trim().replace(/^["\u201c]|["\u201d]$/g, '')
     .trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?]+$/, '');
 
