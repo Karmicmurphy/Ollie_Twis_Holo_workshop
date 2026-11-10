@@ -15,7 +15,7 @@ const keys = new Map();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 // Only compiled release modules choose a contract; request bodies cannot select one.
-export function createHostedHandler({ workflow, requestId, manifestSha, envPrefix, allowStatusQuery = false }) {
+export function createHostedHandler({ workflow, requestId, manifestSha, envPrefix, allowStatusQuery = false, submitTimeLimited = false }) {
 const WORKFLOW = workflow, REQUEST = requestId, MANIFEST = manifestSha;
 const fail = (status, code) => { throw Object.assign(new Error(code), { status }); };
 const json = (body, status = 200) => Response.json(body, {
@@ -183,6 +183,16 @@ async function handle({ request, env }, deps = {}) {
     if (!['GET', 'POST'].includes(request.method)) fail(405, 'METHOD_NOT_ALLOWED');
     if (request.method === 'POST') {
       if (env[envPrefix + '_SUBMIT_ENABLED'] !== 'true') fail(503, 'NEW_WORK_STOPPED');
+      // Only commissioning 003 can use the narrow owner-only deployment window.
+      // Missing, malformed, expired, or excessively long windows stay fail-closed.
+      if (submitTimeLimited) {
+        const until = env[envPrefix + '_SUBMIT_UNTIL'];
+        const expiresAt = typeof until === 'string' &&
+          /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(until) ? Date.parse(until) : NaN;
+        const remaining = expiresAt - Date.now();
+        if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 60 * 60 * 1000)
+          fail(503, 'NEW_WORK_STOPPED');
+      }
       if (request.headers.get('origin') !== HOST ||
           request.headers.get('content-type')?.split(';')[0] !== 'application/json') fail(403, 'SAME_ORIGIN_JSON_REQUIRED');
       const body = JSON.parse(decoder.decode(await bytes(request, 512)));
