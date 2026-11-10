@@ -45,6 +45,39 @@ test('read-only lookup never dispatches and exposes the new request identity', a
   assert.deepEqual(await response.json(), { request_id: REQUEST, status: 'NOT_SUBMITTED' });
 });
 
+test('003 GET tolerates extra query text only on canonical host without dispatch', async () => {
+  let calls = 0;
+  const fetcher = async (url, opts) => {
+    calls++;
+    assert.ok(url.includes('friday-commissioning-003.yml/runs'));
+    assert.notEqual(opts.method, 'POST');
+    return Response.json({ total_count: 0, workflow_runs: [] });
+  };
+  const input = await request();
+  const withQuery = new Request(origin + '/api/foundation/hosted-commissioning-003?from=app-link', {
+    headers: input.headers,
+  });
+  const r = await handle({ request: withQuery, env }, deps(fetcher));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { request_id: REQUEST, status: 'NOT_SUBMITTED' });
+  assert.equal(calls, 1);
+});
+
+test('003 does not allow alternate origin or any query on POST', async () => {
+  let calls = 0;
+  const fetcher = () => { calls++; throw Error('Upstream call not permitted'); };
+  const input = await request('POST');
+  const options = { method: 'POST', headers: input.headers,
+    body: JSON.stringify({ request_id: REQUEST, instruction: INSTRUCTION }) };
+  const crossHost = new Request('https://example.net/api/foundation/hosted-commissioning-003', options);
+  const crossResult = await handle({ request: crossHost, env }, deps(fetcher));
+  assert.equal((await crossResult.json()).error, 'WORKSHOP_ORIGIN_REQUIRED');
+  const queried = new Request(origin + '/api/foundation/hosted-commissioning-003?from=app-link', options);
+  const queryResult = await handle({ request: queried, env }, deps(fetcher));
+  assert.equal((await queryResult.json()).error, 'WORKSHOP_ORIGIN_REQUIRED');
+  assert.equal(calls, 0);
+});
+
 test('old Harness binding cannot dispatch the successor; exact new binding dispatches once', async () => {
   for (const old of [true, false]) {
     let posts = 0;

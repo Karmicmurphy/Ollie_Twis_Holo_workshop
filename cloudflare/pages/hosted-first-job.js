@@ -15,7 +15,7 @@ const keys = new Map();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 // Only compiled release modules choose a contract; request bodies cannot select one.
-export function createHostedHandler({ workflow, requestId, manifestSha, envPrefix }) {
+export function createHostedHandler({ workflow, requestId, manifestSha, envPrefix, allowStatusQuery = false }) {
 const WORKFLOW = workflow, REQUEST = requestId, MANIFEST = manifestSha;
 const fail = (status, code) => { throw Object.assign(new Error(code), { status }); };
 const json = (body, status = 200) => Response.json(body, {
@@ -173,7 +173,10 @@ async function handle({ request, env }, deps = {}) {
   const control = env[envPrefix + '_CONTROL_SHA'];
   try {
     const url = new URL(request.url);
-    if (url.origin !== HOST || url.search) fail(403, 'WORKSHOP_ORIGIN_REQUIRED');
+    // A harmless, authenticated 003 GET may arrive with browser-added query text.
+    // Never relax the canonical origin or the no-query POST dispatch boundary.
+    if (url.origin !== HOST || (url.search && !(allowStatusQuery && request.method === 'GET')))
+      fail(403, 'WORKSHOP_ORIGIN_REQUIRED');
     if (env[envPrefix + '_READ_ENABLED'] !== 'true' ||
         !env.FOUNDATION_GITHUB_TOKEN || !SHA.test(control || '')) fail(503, 'HOSTED_READ_DISABLED');
     await authorize(request, env, deps.keyResolver);
