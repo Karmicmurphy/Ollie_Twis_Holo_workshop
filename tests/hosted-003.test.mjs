@@ -121,6 +121,56 @@ test('003 read-only retrieval exposes redacted phase for unexpected upstream fai
   assert.equal((await failedZip.json()).phase, 'ARTIFACT_ZIP_REQUEST');
 });
 
+test('003 artifact ZIP uses manual redirect and checks bytes instead of throwing', async () => {
+  const completed = { ...run, status: 'completed', conclusion: 'success' };
+  const signedZip = 'https://productionresultssa0.blob.core.windows.net/actions-results/pinned-proof.zip?sig=fake';
+  let signedRequests = 0;
+  const fetcher = async (url, options) => {
+    assert.notEqual(options.method, 'POST');
+    if (url.includes('/runs?')) return Response.json({ total_count: 1, workflow_runs: [completed] });
+    if (url.includes('/artifacts?')) return Response.json({ total_count: 1, artifacts: [{
+      id: 1234, name: 'friday-' + REQUEST, expired: false,
+      size_in_bytes: 14000, digest: 'sha256:' + 'b'.repeat(64),
+    }] });
+    if (url.endsWith('/artifacts/1234/zip')) {
+      assert.equal(options.redirect, 'manual');
+      return new Response(null, { status: 302, headers: { Location: signedZip } });
+    }
+    assert.equal(url, signedZip);
+    assert.equal(options.redirect, 'manual');
+    assert.ok(!options.headers?.Authorization);
+    signedRequests++;
+    return new Response(new Uint8Array([80, 75]), { status: 200 });
+  };
+  const response = await handle({ request: await request(), env }, deps(fetcher));
+  assert.equal(signedRequests, 1);
+  // Deliberately wrong ZIP digest proves download reached the original checksum gate.
+  assert.equal((await response.json()).error, 'ARTIFACT_DIGEST_MISMATCH');
+});
+
+test('003 signed artifact download rejects secondary redirects without following', async () => {
+  const completed = { ...run, status: 'completed', conclusion: 'success' };
+  const signedZip = 'https://productionresultssa0.blob.core.windows.net/actions-results/pinned-proof.zip?sig=fake';
+  let signedRequests = 0;
+  const fetcher = async (url, options) => {
+    if (url.includes('/runs?')) return Response.json({ total_count: 1, workflow_runs: [completed] });
+    if (url.includes('/artifacts?')) return Response.json({ total_count: 1, artifacts: [{
+      id: 1234, name: 'friday-' + REQUEST, expired: false,
+      size_in_bytes: 14000, digest: 'sha256:' + 'b'.repeat(64),
+    }] });
+    if (url.endsWith('/artifacts/1234/zip')) {
+      return new Response(null, { status: 302, headers: { Location: signedZip } });
+    }
+    assert.equal(url, signedZip);
+    assert.equal(options.redirect, 'manual');
+    signedRequests++;
+    return new Response(null, { status: 302, headers: { Location: 'https://untrusted.example/escape' } });
+  };
+  const response = await handle({ request: await request(), env }, deps(fetcher));
+  assert.equal(signedRequests, 1);
+  assert.equal((await response.json()).error, 'ARTIFACT_REDIRECT_DENIED');
+});
+
 test('old Harness binding cannot dispatch the successor; exact new binding dispatches once', async () => {
   for (const old of [true, false]) {
     let posts = 0;
