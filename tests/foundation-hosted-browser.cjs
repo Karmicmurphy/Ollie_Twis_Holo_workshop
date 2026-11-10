@@ -6,7 +6,7 @@ const playwright = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(__dirname, '..', 'app');
 const output = path.resolve(process.env.FOUNDATION_BROWSER_OUTPUT || 'output/playwright/foundation-hosted');
 const origin = 'https://ollie-twis-holo-workshop.pages.dev';
-const requestId = 'request-commissioning-002';
+const requestId = 'request-commissioning-003';
 
 (async () => {
   await fs.mkdir(output, { recursive: true });
@@ -26,7 +26,7 @@ const requestId = 'request-commissioning-002';
       if (url.origin !== origin) return route.abort();
       if (blockClient && url.pathname.endsWith('/foundation-job-client.js')) return route.fulfill({ status: 404, body: '' });
       if (url.pathname.startsWith('/api/')) {
-        if (url.pathname === '/api/foundation/hosted-commissioning-successor') {
+        if (url.pathname === '/api/foundation/hosted-commissioning-003') {
           if (route.request().method() === 'POST') {
             posts++;
             assert.deepEqual(route.request().postDataJSON(), { request_id: requestId,
@@ -80,7 +80,7 @@ const requestId = 'request-commissioning-002';
     assert.equal(stored.activeProject, record.projectId);
     assert.equal(posts, 1);
     await page.locator('.nav[data-room="work"]').click();
-    await page.locator('#workList [data-open="foundation-result-request-commissioning-002"]').click();
+    await page.locator('#workList [data-open="foundation-result-request-commissioning-003"]').click();
     await page.locator('.foundation-output').waitFor();
     assert.equal(posts, 1);
     assert.deepEqual(errors, []);
