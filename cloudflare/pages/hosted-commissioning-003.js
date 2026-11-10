@@ -6,4 +6,5 @@ export const MANIFEST = '46e0cb9446779bdcf65dc442897a4775de17dfa04a756af2d8bcd39
 export const { handle, verifyBundle } = createHostedHandler({
   workflow: 'friday-commissioning-003.yml', requestId: REQUEST,
   manifestSha: MANIFEST, envPrefix: 'FRIDAY_THIRD',
+  allowStatusQuery: true,
 });
