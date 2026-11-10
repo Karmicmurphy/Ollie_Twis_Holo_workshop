@@ -11,7 +11,8 @@ const control = 'a'.repeat(40), actor = { id: 141688225, type: 'User' };
 const { publicKey, privateKey } = await generateKeyPair('RS256');
 const env = { FOUNDATION_ACCESS_DOMAIN: 'fixture.cloudflareaccess.com', FOUNDATION_ACCESS_AUD: 'aud',
   FOUNDATION_OWNER_SUB: 'owner', FOUNDATION_GITHUB_TOKEN: 'fixture-not-a-token',
-  FRIDAY_THIRD_CONTROL_SHA: control, FRIDAY_THIRD_READ_ENABLED: 'true', FRIDAY_THIRD_SUBMIT_ENABLED: 'true' };
+  FRIDAY_THIRD_CONTROL_SHA: control, FRIDAY_THIRD_READ_ENABLED: 'true', FRIDAY_THIRD_SUBMIT_ENABLED: 'true',
+  FRIDAY_THIRD_SUBMIT_UNTIL: new Date(Date.now() + 5 * 60 * 1000).toISOString() };
 const run = { id: 123, run_number: 1, run_attempt: 1, display_title: REQUEST,
   event: 'workflow_dispatch', path: '.github/workflows/friday-commissioning-003.yml', head_branch: 'main',
   head_sha: control, actor, triggering_actor: actor, repository: { full_name: 'Karmicmurphy/temporal-capability-foundry' },
@@ -76,6 +77,19 @@ test('003 does not allow alternate origin or any query on POST', async () => {
   const queryResult = await handle({ request: queried, env }, deps(fetcher));
   assert.equal((await queryResult.json()).error, 'WORKSHOP_ORIGIN_REQUIRED');
   assert.equal(calls, 0);
+});
+
+test('003 timed submit gate stops expired or missing windows before GitHub calls', async () => {
+  const input = await request('POST');
+  const blocked = { ...env, FRIDAY_THIRD_SUBMIT_UNTIL: '2026-11-09T00:00:00.000Z' };
+  const response = await handle({ request: input, env: blocked }, deps(never));
+  assert.equal((await response.json()).error, 'NEW_WORK_STOPPED');
+  const missing = { ...env, FRIDAY_THIRD_SUBMIT_UNTIL: undefined };
+  const response2 = await handle({ request: await request('POST'), env: missing }, deps(never));
+  assert.equal((await response2.json()).error, 'NEW_WORK_STOPPED');
+  const broad = { ...env, FRIDAY_THIRD_SUBMIT_UNTIL: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() };
+  const response3 = await handle({ request: await request('POST'), env: broad }, deps(never));
+  assert.equal((await response3.json()).error, 'NEW_WORK_STOPPED');
 });
 
 test('old Harness binding cannot dispatch the successor; exact new binding dispatches once', async () => {
