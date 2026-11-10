@@ -92,6 +92,35 @@ test('003 timed submit gate stops expired or missing windows before GitHub calls
   assert.equal((await response3.json()).error, 'NEW_WORK_STOPPED');
 });
 
+test('003 read-only retrieval exposes redacted phase for unexpected upstream failure', async () => {
+  let calls = 0;
+  const failedHistory = await handle({ request: await request(), env }, deps(async () => {
+    calls++; throw new TypeError('private simulated network error');
+  }));
+  const history = await failedHistory.json();
+  assert.equal(failedHistory.status, 502);
+  assert.deepEqual(history, { request_id: REQUEST, status: 'BLOCKED',
+    error: 'UPSTREAM_OR_PROOF_UNAVAILABLE', phase: 'HISTORY_LOOKUP' });
+  assert.equal(calls, 1);
+
+  const completed = { ...run, status: 'completed', conclusion: 'success' };
+  const failedArtifactList = await handle({ request: await request(), env }, deps(async url => {
+    if (url.includes('/runs?')) return Response.json({ total_count: 1, workflow_runs: [completed] });
+    throw new TypeError('simulated list transport issue');
+  }));
+  assert.equal((await failedArtifactList.json()).phase, 'ARTIFACT_LIST');
+
+  const failedZip = await handle({ request: await request(), env }, deps(async url => {
+    if (url.includes('/runs?')) return Response.json({ total_count: 1, workflow_runs: [completed] });
+    if (url.includes('/artifacts?')) return Response.json({ total_count: 1, artifacts: [{
+      id: 100, name: 'friday-' + REQUEST, expired: false,
+      size_in_bytes: 14000, digest: 'sha256:' + 'a'.repeat(64),
+    }] });
+    throw new TypeError('simulated ZIP transport issue');
+  }));
+  assert.equal((await failedZip.json()).phase, 'ARTIFACT_ZIP_REQUEST');
+});
+
 test('old Harness binding cannot dispatch the successor; exact new binding dispatches once', async () => {
   for (const old of [true, false]) {
     let posts = 0;
