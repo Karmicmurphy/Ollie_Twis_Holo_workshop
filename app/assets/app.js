@@ -92,7 +92,7 @@ $("#contextEnabled").onchange=()=>saveFoundationContext($("#contextEnabled").che
 
 const hostedInstruction="Repair only the isolated AIOS path-containment test fixture.";
 const recognizesHostedInstruction=text=>window.FoundationJobClient?.recognizes(text)||String(text).trim()===hostedInstruction;
-const hostedRequestId="request-commissioning-002";
+const hostedRequestId="request-commissioning-003";
 let hostedBusy=false,hostedPollRemaining=0,hostedPollTimer=null;
 let hostedEvidence;
 
