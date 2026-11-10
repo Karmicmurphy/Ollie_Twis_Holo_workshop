@@ -32,12 +32,15 @@ class SuccessorPagesConfigurationTests(unittest.TestCase):
             "FRIDAY_SUCCESSOR_CONTROL_SHA": "08f86bcfed3a9e41a0cb95ef0112db32082dc479",
             "FRIDAY_SUCCESSOR_READ_ENABLED": "true",
             "FRIDAY_SUCCESSOR_SUBMIT_ENABLED": "false",
+            "FRIDAY_THIRD_CONTROL_SHA": "6e37d786b5f73ea8de03f95ed99ec21cf09113b8",
+            "FRIDAY_THIRD_READ_ENABLED": "true",
+            "FRIDAY_THIRD_SUBMIT_ENABLED": "false",
         })
 
     def test_local_and_preview_do_not_receive_successor_settings(self):
         self.assertEqual(self.config["vars"], BASE_VARS)
         self.assertEqual(set(self.config["env"]), {"production"})
-        self.assertFalse(any(key.startswith("FRIDAY_SUCCESSOR_") for key in self.config["vars"]))
+        self.assertFalse(any(key.startswith(("FRIDAY_SUCCESSOR_", "FRIDAY_THIRD_")) for key in self.config["vars"]))
 
     def test_credentials_and_other_bindings_remain_provider_managed(self):
         for variables in (self.config["vars"], self.config["env"]["production"]["vars"]):
