@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v18-commissioning-successor";
+const CACHE_NAME = "twis-holo-workshop-v19-commissioning-003";
 const APP_SHELL = [
   "./",
   "./index.html",
