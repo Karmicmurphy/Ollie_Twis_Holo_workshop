@@ -1,120 +1,111 @@
 (() => {
+  "use strict";
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const canHear = Boolean(Rec);
-  const canTalk = "speechSynthesis" in window;
-  let on = false;
-  let rec = null;
-  let talking = false;
-  let last = "";
-
-  const $ = (s, root = document) => root.querySelector(s);
-
-  function status(text) {
-    const s = $("#voiceLoopStatus");
-    if (s) s.textContent = text;
-    const b = $("#voiceLoopToggle");
-    if (b) b.textContent = on ? "Stop voice conversation" : "Start voice conversation";
+  const $ = id => document.getElementById(id);
+  let recognition = null, live = false, speaking = false, generation = 0;
+  let lastReply = "";
+  const status = message => {
+    if ($("fridayVoiceStatus")) $("fridayVoiceStatus").textContent = message;
+    if ($("fridayPushTalk")) $("fridayPushTalk").setAttribute("aria-pressed", String(Boolean(recognition && !live)));
+    if ($("fridayLiveVoice")) $("fridayLiveVoice").setAttribute("aria-pressed", String(live));
+  };
+  function stop() {
+    generation++;
+    live = false;
+    speaking = false;
+    const r = recognition; recognition = null;
+    if (r) { r.onend = null; try { r.abort(); } catch {} }
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    status("Voice stopped.");
   }
-
-  function panel() {
-    const side = document.querySelector('[data-panel="talk"] aside.panel');
-    if (!side || $("#voiceLoopPanel")) return;
-    const box = document.createElement("div");
-    box.id = "voiceLoopPanel";
-    box.innerHTML = '<hr><h3>Voice mode</h3><button id="voiceLoopToggle" class="tool">Start voice conversation</button><p id="voiceLoopStatus" class="muted">Click start, allow microphone, then talk.</p><p class="muted">Uses browser speech input and browser speech output.</p>';
-    side.appendChild(box);
-    $("#voiceLoopToggle").onclick = toggle;
-    if (!canHear) status("Voice input is not available in this browser.");
+  function start(continuous) {
+    stop();
+    if (!Rec) { status("This browser does not support speech recognition. Try Chrome on Android."); return; }
+    if (!window.isSecureContext) { status("Microphone requires HTTPS."); return; }
+    live = continuous;
+    const session = ++generation;
+    status(continuous ? "Starting live voice…" : "Starting microphone…");
+    listen(session);
   }
-
-  function listen() {
-    if (!on || !canHear || talking) return;
-    try {
-      rec = new Rec();
-      rec.lang = "en-US";
-      rec.interimResults = false;
-      rec.continuous = false;
-      rec.onstart = () => status("Listening…");
-      rec.onerror = (e) => status("Voice input error: " + (e.error || "unknown"));
-      rec.onresult = (e) => {
-        const text = Array.from(e.results).map(r => r[0].transcript).join(" ").trim();
-        if (text) send(text);
-      };
-      rec.onend = () => { if (on && !talking) setTimeout(listen, 500); };
-      rec.start();
-    } catch {
-      status("Could not start voice input. Check microphone permission.");
-    }
+  function listen(session) {
+    if (session !== generation || speaking) return;
+    const r = new Rec();
+    recognition = r;
+    r.lang = "en-US";
+    r.interimResults = false;
+    r.continuous = false;
+    let heard = false, failed = false;
+    r.onstart = () => status("Listening… speak now.");
+    r.onresult = event => {
+      if (session !== generation) return;
+      const transcript = Array.from(event.results).map(item => item[0].transcript).join(" ").trim();
+      if (!transcript) return;
+      heard = true;
+      if (live) {
+        const input = $("chatInput"), form = $("chatForm");
+        if (input && form) {
+          document.querySelector('[data-room="talk"]')?.click();
+          input.value = transcript;
+          form.dispatchEvent(new Event("submit", {bubbles:true,cancelable:true}));
+          status("Heard: " + transcript + " — waiting for reply.");
+        }
+      } else {
+        const input = $("openDoorInput");
+        if (input) { input.value = transcript; input.dispatchEvent(new Event("input",{bubbles:true})); }
+        status("Heard: " + transcript + ". Review the text, then tap Start here.");
+      }
+    };
+    r.onerror = event => {
+      failed = true;
+      if (session !== generation) return;
+      live = false;
+      status("Microphone: " + (event.error || "unavailable") + ". Check browser permission.");
+    };
+    r.onend = () => {
+      if (recognition === r) recognition = null;
+      if (session !== generation) return;
+      if (!live && !heard && !failed) status("No speech heard. Tap Push to talk to try again.");
+      // Live mode resumes after a spoken reply, or after a no-speech timeout.
+      if (live && !heard && !failed && !speaking) setTimeout(() => listen(session), 900);
+    };
+    try { r.start(); } catch { live = false; recognition = null; status("Microphone could not start. Check permissions."); }
   }
-
-  function stopListen() {
-    try { if (rec) rec.stop(); } catch {}
-    rec = null;
-  }
-
-  function send(text) {
-    const input = $("#chatInput");
-    const form = $("#chatForm");
-    if (!input || !form) return;
-    input.value = text;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    status("Heard: " + text);
-  }
-
-  function say(text) {
-    if (!on || !canTalk || !text || text === last) return;
-    last = text;
-    talking = true;
-    stopListen();
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.slice(0, 4000));
-    u.rate = 0.98;
-    u.pitch = 0.92;
-    u.onend = () => { talking = false; if (on) setTimeout(listen, 700); };
-    u.onerror = () => { talking = false; if (on) setTimeout(listen, 700); };
-    status("Speaking reply…");
-    speechSynthesis.speak(u);
-  }
-
-  function watch() {
-    const messages = $("#messages");
-    if (!messages || messages.dataset.voiceLoop) return;
-    messages.dataset.voiceLoop = "1";
-    new MutationObserver(() => {
-      if (!on) return;
-      const replies = Array.from(messages.querySelectorAll(".message.assistant"));
-      const latest = replies[replies.length - 1];
-      if (latest) say(latest.textContent.trim());
-    }).observe(messages, { childList: true, subtree: true });
-  }
-
-  function toggle() {
-    if (!canHear) { status("Voice input is not available in this browser."); return; }
-    on = !on;
-    if (on) {
-      const talk = document.querySelector('[data-room="talk"]');
-      if (talk) talk.click();
-      panel();
-      watch();
-      status("Starting voice mode…");
-      listen();
-    } else {
-      stopListen();
-      if (canTalk) speechSynthesis.cancel();
-      talking = false;
-      status("Voice mode stopped.");
-    }
-  }
-
   function boot() {
-    panel();
-    watch();
-    document.addEventListener("click", e => {
-      if (e.target && e.target.dataset && e.target.dataset.room === "talk") setTimeout(() => { panel(); watch(); }, 50);
+    $("fridayPushTalk")?.addEventListener("click", () => {
+      if (recognition && !live) stop(); else start(false);
     });
+    $("fridayLiveVoice")?.addEventListener("click", () => {
+      if (live) stop(); else start(true);
+    });
+    $("fridayStopVoice")?.addEventListener("click", stop);
+    $("micBtn")?.addEventListener("click", () => {
+      // Existing one-shot dictation remains available in the Talk room.
+    });
+    const messages = $("messages");
+    if (messages && "MutationObserver" in window) {
+      new MutationObserver(() => {
+        if (!live || speaking || !("speechSynthesis" in window)) return;
+        const replies = messages.querySelectorAll(".message.assistant");
+        const reply = replies.length ? replies[replies.length-1].textContent.trim() : "";
+        if (!reply || reply === lastReply) return;
+        lastReply = reply;
+        speaking = true;
+        const session = generation;
+        const r = recognition; recognition = null;
+        if (r) { r.onend = null; try { r.abort(); } catch {} }
+        const utterance = new SpeechSynthesisUtterance(reply.slice(0,4000));
+        utterance.lang = "en-US";
+        utterance.rate = 0.98;
+        utterance.onend = utterance.onerror = () => {
+          speaking = false;
+          if (live && session === generation) setTimeout(() => listen(session), 600);
+        };
+        status("FRIDAY speaking…");
+        speechSynthesis.speak(utterance);
+      }).observe(messages, {childList:true,subtree:true});
+    }
+    if (!Rec) status("Speech recognition unavailable in this browser. Text input still works.");
   }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",boot);
   else boot();
 })();
