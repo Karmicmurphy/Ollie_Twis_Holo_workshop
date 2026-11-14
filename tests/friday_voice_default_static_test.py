@@ -11,4 +11,4 @@ def test_friday_browser_voice_is_explicit_and_free_first():
     assert '"Jenny"' in source and '"Samantha"' in source
     assert "fetch(" not in source
     assert "speechSynthesis.speak(u)" in source
-    assert "Start voice conversation" in source
+    assert "Talk to FRIDAY" in source
