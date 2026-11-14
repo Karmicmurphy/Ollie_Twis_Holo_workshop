@@ -6,6 +6,17 @@
   let rec = null;
   let talking = false;
   let last = "";
+  // Browser-only FRIDAY voice: pick a suitable installed English female voice.
+  // No cloud requests, API keys, downloads, or auto-activation.
+  const FEMALE_VOICE_NAMES = ["Jenny", "Aria", "Samantha", "Ava", "Sonia", "Zira", "Natasha", "Emma", "Susan", "Female"];
+  function fridayVoice() {
+    if (!canTalk) return null;
+    const voices = speechSynthesis.getVoices();
+    const english = voices.filter(v => /^en([_-]|$)/i.test(v.lang || ""));
+    return english.find(v => FEMALE_VOICE_NAMES.some(name => v.name.toLowerCase().includes(name.toLowerCase())))
+      || voices.find(v => FEMALE_VOICE_NAMES.some(name => v.name.toLowerCase().includes(name.toLowerCase())))
+      || english[0] || voices[0] || null;
+  }
 
   const $ = (s, root = document) => root.querySelector(s);
 
@@ -69,8 +80,10 @@
     stopListen();
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.slice(0, 4000));
-    u.rate = 0.98;
-    u.pitch = 0.92;
+    const selectedVoice = fridayVoice();
+    if (selectedVoice) u.voice = selectedVoice;
+    u.rate = 0.96;
+    u.pitch = 1.0;
     u.onend = () => { talking = false; if (on) setTimeout(listen, 700); };
     u.onerror = () => { talking = false; if (on) setTimeout(listen, 700); };
     status("Speaking reply…");
