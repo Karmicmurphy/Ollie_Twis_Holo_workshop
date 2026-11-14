@@ -6,6 +6,7 @@
   let rec = null;
   let talking = false;
   let last = "";
+  // Uses browser speech input and browser speech output.
   // Browser-only FRIDAY voice: pick a suitable installed English female voice.
   // No cloud requests, API keys, downloads, or auto-activation.
   const FEMALE_VOICE_NAMES = ["Jenny", "Aria", "Samantha", "Ava", "Sonia", "Zira", "Natasha", "Emma", "Susan", "Female"];
