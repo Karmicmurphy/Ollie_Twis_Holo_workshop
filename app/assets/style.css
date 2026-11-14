@@ -132,3 +132,13 @@ textarea{resize:vertical}
   .panel,.hero{padding:12px}
   #messages{height:50vh}
 }
+
+.friday-voice-launch{margin-top:14px;display:grid;gap:6px}
+.friday-voice-launch p{font-size:13px}
+.friday-voice-button{min-height:58px;width:100%;border:2px solid var(--cyan);border-radius:14px;background:linear-gradient(135deg,#166078,#163450);color:white;font-size:19px;font-weight:800;text-align:center}
+.friday-voice-button[aria-pressed="true"]{border-color:var(--pink);background:#51243c}
+.friday-voice-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:12px;border-bottom:1px solid var(--line)}
+.friday-voice-toolbar .friday-voice-button{width:auto;flex:1 1 190px}
+.friday-voice-secondary{min-height:52px;flex:1 1 160px;border:1px solid var(--cyan);border-radius:12px;color:var(--text);background:#132e40;font-weight:700}
+#voiceLoopStatus{flex-basis:100%;font-size:13px;color:var(--muted)}
+@media(max-width:780px){.friday-voice-toolbar{display:grid;grid-template-columns:1fr}.friday-voice-toolbar .friday-voice-button{width:100%}}
