@@ -25,7 +25,20 @@
     live = continuous;
     const session = ++generation;
     status(continuous ? "Starting live voice…" : "Starting microphone…");
-    listen(session);
+    // Explicit permission probe makes unsupported or blocked Android microphones visible.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      status("Microphone API unavailable here. Open the Workshop directly in Chrome, not an in-app browser.");
+      live = false;
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+      stream.getTracks().forEach(track => track.stop());
+      if (session === generation) listen(session);
+    }).catch(error => {
+      if (session !== generation) return;
+      live = false;
+      status("Microphone permission failed: " + (error.name || "unknown") + ". Allow microphone access in Chrome site settings.");
+    });
   }
   function listen(session) {
     if (session !== generation || speaking) return;
@@ -78,6 +91,16 @@
       if (live) stop(); else start(true);
     });
     $("fridayStopVoice")?.addEventListener("click", stop);
+    $("fridayTestVoice")?.addEventListener("click", () => {
+      if (!("speechSynthesis" in window)) { status("Speaker test unavailable in this browser."); return; }
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance("FRIDAY speaker test. If you hear this, sound is working.");
+      u.onstart = () => status("Speaker test playing…");
+      u.onend = () => status("Speaker test complete.");
+      u.onerror = event => status("Speaker test failed: " + (event.error || "unknown"));
+      speechSynthesis.speak(u);
+      status("Speaker test requested. Check media volume.");
+    });
     $("micBtn")?.addEventListener("click", () => {
       // Existing one-shot dictation remains available in the Talk room.
     });
@@ -104,7 +127,7 @@
         speechSynthesis.speak(utterance);
       }).observe(messages, {childList:true,subtree:true});
     }
-    if (!Rec) status("Speech recognition unavailable in this browser. Text input still works.");
+    status(!Rec ? "Speech recognition unavailable here. Open in Chrome on Android." : "Voice ready. Tap Push to talk or Start live voice.");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",boot);
   else boot();
