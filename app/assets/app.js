@@ -264,7 +264,61 @@ function renderChat(){
   messages.scrollTop=messages.scrollHeight;save();
 }
 $("#memoryPrompt").onclick=()=>{$("#chatInput").value=prompts[Math.floor(Math.random()*prompts.length)]};$("#chatForm").onsubmit=async e=>{e.preventDefault();const text=$("#chatInput").value.trim();if(!text)return;if(location.origin==="https://ollie-twis-holo-workshop.pages.dev"&&recognizesHostedInstruction(text)){await enterHostedFirstJob();return}state.chat.push({role:"user",content:text});$("#chatInput").value="";renderChat();const reply=await aiReply(text);state.chat.push({role:"assistant",content:reply});renderChat();if(state.settings.speakReplies)speak(reply)}
-async function aiReply(text){const s=state.settings;if(s.endpoint&&s.model){try{const context=state.items.slice(0,8).map(i=>`${i.type}: ${i.title}`).join("\n");const messages=[{role:"system",content:`You are ${s.companionName}, Randy's natural creative companion inside Twis Holo Workshop. Active project: ${active()?.title}. Recent artifacts:\n${context}\nHelp with conversation, writing, music, video, images, research, and building. Preserve constraints. Do not force project-management language.`},...state.chat.slice(-20)];if(companion){const d=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({endpoint:s.endpoint,model:s.model,apiKey:s.apiKey,messages})});return d.text||"No text returned."}const h={"Content-Type":"application/json"};if(s.apiKey)h.Authorization=`Bearer ${s.apiKey}`;const r=await fetch(s.endpoint,{method:"POST",headers:h,body:JSON.stringify({model:s.model,messages,temperature:.8})});const d=await r.json();return d.choices?.[0]?.message?.content||d.response||"No text returned."}catch(e){$("#aiStatus").textContent="AI connection failed: "+e.message}}const l=text.toLowerCase();if(/story|write|scene/.test(l))return "Tell me the image, line, or moment you can already see. We can build the story from there.";if(/music|beat|song/.test(l))return "Open Music and begin with the rhythm or the words—whichever is already alive.";if(/memory|remember/.test(l))return prompts[Math.floor(Math.random()*prompts.length)];return "I'm here. Keep going—what part of that matters most right now?"}
+async function requestAi(messages, signal) {
+  const { endpoint, model, apiKey } = state.settings;
+  if (companion) {
+    const data = await api("/api/ai/chat", { method: "POST", signal,
+      body: JSON.stringify({ endpoint, model, apiKey, messages }) });
+    return data.text;
+  }
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const response = await fetch(endpoint, { method: "POST", headers, signal,
+    body: JSON.stringify({ model, messages, temperature: .8 }) });
+  if (!response.ok) {
+    const target = new URL(endpoint, location.href);
+    if (target.origin === location.origin && target.pathname === "/api/ai/chat" && response.status === 503) {
+      throw Error("The Cloudflare AI adapter is unavailable. Check its binding and enablement.");
+    }
+    throw Error("The AI adapter returned HTTP " + response.status + ".");
+  }
+  const data = await response.json();
+  if (data.ok === false) throw Error("The AI adapter returned an error.");
+  return data.choices?.[0]?.message?.content || data.response || data.text;
+}
+async function aiReply(text) {
+  const s = state.settings;
+  if (s.endpoint && s.model) {
+    try {
+      const context = state.items.slice(0, 8).map(i => `${i.type}: ${i.title}`).join("\n");
+      const messages = [{ role: "system", content: `You are ${s.companionName}, Randy's natural creative companion inside Twis Holo Workshop. Active project: ${active()?.title}. Recent artifacts:\n${context}\nHelp with conversation, writing, music, video, images, research, and building. Preserve constraints. Do not force project-management language.` }, ...state.chat.slice(-20)];
+      return await requestAi(messages) || "No text returned.";
+    } catch (error) { $("#aiStatus").textContent = "AI connection failed: " + error.message; }
+  }
+  const l = text.toLowerCase();
+  if (/story|write|scene/.test(l)) return "Tell me the image, line, or moment you can already see. We can build the story from there.";
+  if (/music|beat|song/.test(l)) return "Open Music and begin with the rhythm or the words—whichever is already alive.";
+  if (/memory|remember/.test(l)) return prompts[Math.floor(Math.random()*prompts.length)];
+  return "I'm here. Keep going—what part of that matters most right now?";
+}
+
+// Voice is chat only. It must not synthesize a form submission or enter job routing.
+window.workshopVoiceReply = async (text, signal) => {
+  if (!state.settings.endpoint || !state.settings.model) {
+    throw Error("No AI adapter is configured. Push to talk and Test speaker still work.");
+  }
+  const project = state.activeProject, chat = state.chat;
+  const answer = await requestAi([{ role: "user", content: text }], signal);
+  if (signal.aborted) throw Error("Voice stopped.");
+  if (state.activeProject !== project || state.chat !== chat) throw Error("Project changed. Voice stopped.");
+  if (typeof answer !== "string" || !answer.trim() || /^No text returned\b/i.test(answer.trim())) {
+    throw Error("The AI adapter returned no reply.");
+  }
+  const reply = answer.trim();
+  chat.push({ role: "user", content: text }, { role: "assistant", content: reply });
+  renderChat();
+  return reply;
+};
 $("#saveChat").onclick=()=>addItem("conversation",`Conversation ${new Date().toLocaleDateString()}`,{messages:clone(state.chat)});$("#chatToStory").onclick=()=>{state.draft.title="Conversation Story Draft";state.draft.body=state.chat.map(m=>`${m.role==="user"?state.settings.userName:state.settings.companionName}: ${m.content}`).join("\n\n");state.draft.versions=[];syncDraft();openRoom("write")};$("#closeSession").onclick=async()=>{const summary=prompt("What should the Workshop remember about this session?")||"";const nextAction=prompt("What is the next action?")||"";if(companion)await api(`/api/projects/${state.activeProject}/sessions`,{method:"POST",body:JSON.stringify({room,nextAction,summary,activeConstraints:[]})});toast("Session closed")}
 function syncDraft(){$("#docTitle").value=state.draft.title;$("#docBody").value=state.draft.body;count();renderVersions()}["docTitle","docBody"].forEach(i=>$("#"+i).oninput=()=>{state.draft.title=$("#docTitle").value;state.draft.body=$("#docBody").value;save();count()});function count(){$("#wordCount").textContent=`${($("#docBody").value.trim().match(/\S+/g)||[]).length} words`}function renderVersions(){$("#versions").innerHTML=(state.draft.versions||[]).map((v,i)=>`<button data-version="${i}" class="quiet">${new Date(v.at).toLocaleString()}</button>`).join("")||'<span class="muted">No snapshots.</span>';$$("[data-version]").forEach(b=>b.onclick=()=>{$("#docBody").value=state.draft.versions[+b.dataset.version].body;$("#docBody").dispatchEvent(new Event("input"))})}
 $("#snapshotDoc").onclick=()=>{state.draft.versions.unshift({at:new Date().toISOString(),body:state.draft.body});save();renderVersions();toast("Snapshot saved")};$("#saveDoc").onclick=()=>addItem("document",state.draft.title,{body:state.draft.body,versions:state.draft.versions});$("#newDoc").onclick=()=>{state.draft.title="Untitled";state.draft.body="";state.draft.versions=[];syncDraft();save()}

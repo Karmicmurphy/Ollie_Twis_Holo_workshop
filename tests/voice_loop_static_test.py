@@ -8,11 +8,14 @@ def test_voice_loop_is_wired_into_static_app():
     voice = (ROOT / "app" / "assets" / "voice-loop.js").read_text(encoding="utf-8")
 
     assert "assets/voice-loop.js" in index
-    assert "Start voice conversation" in voice
+    for control in ("fridayPushTalk", "fridayLiveVoice", "fridayStopVoice", "fridayTestVoice"):
+        assert f'id="{control}"' in index
+        assert f'$("{control}")?.addEventListener("click",' in voice
     assert "SpeechSynthesisUtterance" in voice
     assert "SpeechRecognition" in voice
-    assert "#chatForm" in voice
-    assert "#messages" in voice
+    assert "window.workshopVoiceReply(text, controller.signal)" in voice
+    assert 'new Event("submit"' not in voice
+    assert "MutationObserver" not in voice
 
 
 def test_cloudflare_pages_allows_microphone_for_voice_mode():

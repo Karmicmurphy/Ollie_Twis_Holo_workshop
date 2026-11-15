@@ -18,7 +18,9 @@ def test_voice_loop_uses_browser_speech_synthesis():
 
     assert "speechSynthesis" in voice
     assert "SpeechSynthesisUtterance" in voice
-    assert "Uses browser speech input and browser speech output" in voice
+    assert "synth.speak(u)" in voice
+    for marker in PAID_TTS_MARKERS:
+        assert marker not in voice.lower()
 
 
 def test_cloudflare_ai_endpoint_is_text_only_not_tts():

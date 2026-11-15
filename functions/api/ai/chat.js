@@ -1,3 +1,5 @@
+import { authorize } from "../../../cloudflare/pages/hosted-first-job.js";
+
 const DEFAULT_MODEL = "@cf/openai/gpt-oss-20b";
 const WORKSHOP_AGENT_MODEL = "@cf/zai-org/glm-5.2";
 
@@ -41,6 +43,21 @@ function errorMessage(error) {
 
 export async function onRequestPost(context) {
   const env = context.env || {};
+
+  if (env.TWIS_ALLOW_AI !== "true") {
+    return json({ ok: false, error: "Cloudflare AI is disabled." }, 503);
+  }
+
+  const origin = new URL(context.request.url).origin;
+  if (origin !== "https://ollie-twis-holo-workshop.pages.dev" ||
+      context.request.headers.get("origin") !== origin) {
+    return json({ ok: false, error: "Same-origin Workshop request required." }, 403);
+  }
+  try {
+    await authorize(context.request, env);
+  } catch (error) {
+    return json({ ok: false, error: "Verified Workshop owner required." }, error.status || 401);
+  }
 
   if (!env.AI) {
     return json({
@@ -108,7 +125,8 @@ export async function onRequestGet(context) {
     defaultModel: context.env?.TWIS_CF_AI_MODEL || DEFAULT_MODEL,
     optionalWorkshopAgentModel: context.env?.TWIS_CF_AGENT_MODEL || WORKSHOP_AGENT_MODEL,
     deprecatedPreviousDefault: "@cf/meta/llama-3.1-8b-instruct",
-    status: hasBinding ? "ready-to-probe" : "binding-missing"
+    status: !hasBinding ? "binding-missing" :
+      context.env?.TWIS_ALLOW_AI === "true" ? "ready-to-probe" : "disabled"
   });
 }
 

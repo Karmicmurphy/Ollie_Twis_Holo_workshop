@@ -1,4 +1,4 @@
-const CACHE_NAME = "twis-holo-workshop-v19-commissioning-003";
+const CACHE_NAME = "twis-holo-workshop-v21-voice";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./assets/style.css",
   "./assets/app.js",
+  "./assets/voice-loop.js?v=20261114-voicefix3",
   "./assets/foundation-context-store.js",
   "./assets/foundation-job-client.js",
   "./assets/twis-loop-deck.css",
